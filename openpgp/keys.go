@@ -8,6 +8,8 @@ import (
 	"crypto/rsa"
 	"io"
 	"time"
+	"fmt"
+	"runtime/debug"
 
 	"github.com/keybase/go-crypto/openpgp/armor"
 	"github.com/keybase/go-crypto/openpgp/errors"
@@ -372,6 +374,8 @@ EachPacket:
 						current.SelfSignature = sig
 						break
 					} else {
+						fmt.Printf("foooobbbiiee\n")
+						debug.PrintStack()
 						// Ignore it; some keys have busted self-sigs
 					}
 				}
