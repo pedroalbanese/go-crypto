@@ -12,6 +12,8 @@ import (
 	"github.com/keybase/go-crypto/rsa"
 	"io"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // PublicKeyType is the armor type for a PGP public key.
@@ -24,12 +26,14 @@ var PrivateKeyType = "PGP PRIVATE KEY BLOCK"
 // (which must be a signing key), one or more identities claimed by that key,
 // and zero or more subkeys, which may be encryption keys.
 type Entity struct {
-	PrimaryKey  *packet.PublicKey
-	PrivateKey  *packet.PrivateKey
-	Identities  map[string]*Identity // indexed by Identity.Name
-	Revocations []*packet.Signature
-	Subkeys     []Subkey
-	BadSubkeys  []BadSubkey
+	PrimaryKey            *packet.PublicKey
+	PrivateKey            *packet.PrivateKey
+	Identities            map[string]*Identity // indexed by Identity.Name
+	BadIdentities         map[string]*Identity
+	Revocations           []*packet.Signature
+	UnverifiedRevocations []*packet.Signature
+	Subkeys               []Subkey
+	BadSubkeys            []BadSubkey
 }
 
 // An Identity represents an identity claimed by an Entity and zero or more
@@ -39,6 +43,7 @@ type Identity struct {
 	UserId        *packet.UserId
 	SelfSignature *packet.Signature
 	Signatures    []*packet.Signature
+	Revocation    *packet.Signature
 }
 
 // A Subkey is an additional public key in an Entity. Subkeys can be used for
@@ -402,6 +407,7 @@ func readToNextPublicKey(packets *packet.Reader) (err error) {
 func ReadEntity(packets *packet.Reader) (*Entity, error) {
 	e := new(Entity)
 	e.Identities = make(map[string]*Identity)
+	e.BadIdentities = make(map[string]*Identity)
 
 	p, err := packets.Next()
 	if err != nil {
@@ -442,6 +448,13 @@ EachPacket:
 			current.Name = pkt.Id
 			current.UserId = pkt
 		case *packet.Signature:
+			if pkt.SigType == packet.SigTypeKeyRevocation {
+				// These revocations won't revoke UIDs (see
+				// SigTypeIdentityRevocation). Handle these first,
+				// because key might have revocation coming from
+				// another key (designated revoke).
+				revocations = append(revocations, pkt)
+			}
 
 			// These are signatures by other people on this key. Let's just ignore them
 			// from the beginning, since they shouldn't affect our key decoding one way
@@ -475,6 +488,7 @@ EachPacket:
 			// signature to overwrite the earlier signature if so doing won't
 			// trash the key flags.
 			if current != nil &&
+				current.Revocation == nil &&
 				(current.SelfSignature == nil ||
 					(!pkt.CreationTime.Before(current.SelfSignature.CreationTime) &&
 						(pkt.FlagsValid || !current.SelfSignature.FlagsValid))) &&
@@ -500,13 +514,21 @@ EachPacket:
 					// We really should warn that there was a failure here. Not raise an error
 					// since this really shouldn't be a fail-stop error.
 				}
-			} else if pkt.SigType == packet.SigTypeKeyRevocation {
-				// These revocations won't revoke UIDs as handled above, so lookout!
-				revocations = append(revocations, pkt)
+			} else if current != nil && pkt.SigType == packet.SigTypeIdentityRevocation {
+				if err = e.PrimaryKey.VerifyUserIdSignature(current.Name, e.PrimaryKey, pkt); err == nil {
+					current.Revocation = pkt
+
+					// Remove current from Identities, because the revocation signature
+					// might come after the certification signature.
+					delete(e.Identities, current.Name)
+					e.BadIdentities[current.Name] = current
+				}
 			} else if pkt.SigType == packet.SigTypeDirectSignature {
 				// TODO: RFC4880 5.2.1 permits signatures
 				// directly on keys (eg. to bind additional
 				// revocation keys).
+				//spew.Dump(pkt)
+				_ = spew.Dump
 			} else if current == nil {
 				// NOTE(maxtaco)
 				//
@@ -550,12 +572,17 @@ EachPacket:
 	}
 
 	for _, revocation := range revocations {
-		err = e.PrimaryKey.VerifyRevocationSignature(revocation)
-		if err == nil {
-			e.Revocations = append(e.Revocations, revocation)
+		if revocation.IssuerKeyId == nil || *revocation.IssuerKeyId == e.PrimaryKey.KeyId {
+			// Key revokes itself, something that we can verify.
+			err = e.PrimaryKey.VerifyRevocationSignature(revocation)
+			if err == nil {
+				e.Revocations = append(e.Revocations, revocation)
+			} else {
+				// TODO: RFC 4880 5.2.3.15 defines revocation keys.
+				return nil, errors.StructuralError("revocation signature signed by alternate key")
+			}
 		} else {
-			// TODO: RFC 4880 5.2.3.15 defines revocation keys.
-			return nil, errors.StructuralError("revocation signature signed by alternate key")
+			e.UnverifiedRevocations = append(e.UnverifiedRevocations, revocation)
 		}
 	}
 

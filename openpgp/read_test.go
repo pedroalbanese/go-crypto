@@ -875,6 +875,26 @@ func TestMessageEncryptionRoundtripWithPassphraseChange(t *testing.T) {
 	}
 }
 
+func TestRevokedIdentityKey(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(revokedIdentityKey))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read key: %v", err)
+	}
+	entity := el[0]
+	if len(entity.Identities) != 1 {
+		t.Fatal("Expected one identity")
+	}
+	if len(entity.BadIdentities) != 1 {
+		t.Fatal("Expected one bad identity")
+	}
+	if _, ok := entity.Identities["This One WIll be rev0ked"]; !ok {
+		t.Fatalf("Unexpected valid identity (%v)", entity.Identities)
+	}
+	if _, ok := entity.BadIdentities["Hello AA"]; !ok {
+		t.Fatalf("Unexpected bad identity (%v)", entity.BadIdentities)
+	}
+}
+
 const testKey1KeyId = 0xA34D7E18C20C31BB
 const testKey3KeyId = 0x338934250CCC0360
 
@@ -2601,5 +2621,25 @@ XA/h4QtRlXR4EfX/43opwPYnT/WzImlXzYYJwmcEGBYKAA8FAljQ51oFCQ8JnAAC
 GwgACgkQbs3PeMvPQIwf4QEAFfAR5rdFl2bj2UqhW7S2UL7eb7sgdibqXU/a66hL
 HMgBAPaACKEEt5+mQvLioH2wDPn2Wm2oPd+7XeuGB+ex8JwD
 =vkDo
+-----END PGP PUBLIC KEY BLOCK-----
+`
+
+// Public key that has two identities, one of which is revoked.
+const revokedIdentityKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEWOIZOBYJKwYBBAHaRw8BAQdAOw15aNPr+v1ACWdSwaKmT+vAfpZJu2aiX/ED
+NR70fYm0GFRoaXMgT25lIFdJbGwgYmUgcmV2MGtlZIh5BBMWCAAhBQJY4hlKAhsD
+BQsJCAcCBhUICQoLAgQWAgMBAh4BAheAAAoJEIUbNJhCKy361LQBAPH+mCf0r0z9
+SZXw4B8fJ+jCl//0ato6Nk8bsedA2MyjAP4tx/h9XHjmANhKpue9YCyUFdV2NSKs
+TIJ/EpNwz1QjArQISGVsbG8gQUGIYQQwFggACQUCWOIZcgIdIAAKCRCFGzSYQist
++nW9AQCaXyyTOmUw9gaw0SsS27NLtsYcu/affY4KLYQRW2ZjlgD9GLR5IKYtlX21
+n/8Gw7KAuHaIQLK+wcbXnFabzM7TYA2IeQQTFggAIQUCWOIZOAIbAwULCQgHAgYV
+CAkKCwIEFgIDAQIeAQIXgAAKCRCFGzSYQist+lGFAP9EFlJ0BCgOe6ART8xk93f3
+fF+wOdMzdQ+6hni8wqW3OQEAq3VufchOPYJSL4fA+Oq7uEw5Z5Q9tBViES2Br7+I
+1Au4OARY4hk4EgorBgEEAZdVAQUBAQdAAfA2+lbpmA1YXqHefB8gShHq201PsJmA
+AQ2EB67c/XcDAQgHiGEEGBYIAAkFAljiGTgCGwwACgkQhRs0mEIrLfqOYwD/TaDI
+Y81Z5IXtMVSMjg7sgNI93W9+xY5u0fHH5KThko4BAM7utt+MrMl67IrSLj0HLtVt
+iO3AEa577DoHC0fseUgG
+=uJYe
 -----END PGP PUBLIC KEY BLOCK-----
 `

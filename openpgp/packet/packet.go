@@ -398,6 +398,7 @@ const (
 	SigTypeDirectSignature                 = 0x1F
 	SigTypeKeyRevocation                   = 0x20
 	SigTypeSubkeyRevocation                = 0x28
+	SigTypeIdentityRevocation              = 0x30
 )
 
 // PublicKeyAlgorithm represents the different public key system specified for
