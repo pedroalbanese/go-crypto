@@ -37,9 +37,9 @@ type Signer interface {
 }
 
 type RevocationKey struct {
-	Class byte
+	Class         byte
 	PublicKeyAlgo PublicKeyAlgorithm
-	Fingerprint []byte
+	Fingerprint   []byte
 }
 
 // Signature represents a signature. See RFC 4880, section 5.2.
@@ -443,9 +443,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// is set, then this means that the revocation information is
 		// sensitive.
 		sig.DesignatedRevoker = &RevocationKey{
-			Class: subpacket[0],
+			Class:         subpacket[0],
 			PublicKeyAlgo: PublicKeyAlgorithm(subpacket[1]),
-			Fingerprint: append([]byte{}, subpacket[2:]...),
+			Fingerprint:   append([]byte{}, subpacket[2:]...),
 		}
 	default:
 		if isCritical {
