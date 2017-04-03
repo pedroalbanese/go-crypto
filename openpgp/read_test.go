@@ -895,6 +895,21 @@ func TestRevokedIdentityKey(t *testing.T) {
 	}
 }
 
+func TestDesignatedRevoker(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(designatedRevokedKey))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read key: %v", err)
+	}
+	entity := el[0]
+	if len(entity.Revocations) != 0 || len(entity.UnverifiedRevocations) != 1 {
+		t.Fatal("Expected unverified revocation")
+	}
+	rev := entity.UnverifiedRevocations[0]
+	if issuer := *rev.IssuerKeyId; issuer != 0x9AD4C1F7C4EE24FE {
+		t.Fatalf("Unexpected revocation issuer: %x", issuer)
+	}
+}
+
 const testKey1KeyId = 0xA34D7E18C20C31BB
 const testKey3KeyId = 0x338934250CCC0360
 
@@ -2641,5 +2656,25 @@ AQ2EB67c/XcDAQgHiGEEGBYIAAkFAljiGTgCGwwACgkQhRs0mEIrLfqOYwD/TaDI
 Y81Z5IXtMVSMjg7sgNI93W9+xY5u0fHH5KThko4BAM7utt+MrMl67IrSLj0HLtVt
 iO3AEa577DoHC0fseUgG
 =uJYe
+-----END PGP PUBLIC KEY BLOCK-----
+`
+
+// Key that has a designated revoker direct sig and also a designated
+// revocation signature.
+const designatedRevokedKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEWN6JhRYJKwYBBAHaRw8BAQdA6NMRLTcnG9zXYIlH8aTxXttm6Ibnd+JcdnZR
+7ZaarAOIYQQgFggACQUCWN6J+wIdAwAKCRCa1MH3xO4k/kqzAQCJRWV9XtLuBALs
+pLfqb3V8+dumX9dNZhzrJejoOyNwIwEAzjpTdaSApbvfdon0ndf05UB+hkR2Sal5
+bDXHANjltAiIeQQfFggAIQUCWN6J0RcMgBbsLs6ylR7EOEBNML2a1MH3xO4k/gIH
+AAAKCRA/xm2vd7dAgxE6AP45XxRMDBG4MSvyqZw3zQ3XT0DzZyDfwmh4bNd2FZJg
+lgD9ErTgyWuxVo4c/k/W6vowu6tV0rhMjH9MfwxmzY20igu0B1Jldm9rZWWIeQQT
+FggAIQUCWN6JhQIbAwULCQgHAgYVCAkKCwIEFgIDAQIeAQIXgAAKCRA/xm2vd7dA
+g0wmAPwOALfHBhKEiMTxCtAJ4ynJLiVXYmb+AdxLb6Q+ISmNuAEAt6uDcdM9pfX8
+BjB78WoVjkxwRZpIMM3tcjz6VcR15w+4OARY3omFEgorBgEEAZdVAQUBAQdApcyK
+X+duQaFIZV882qD8PZd3b9qS/ZN1EJSBOkJNiWQDAQgHiGEEGBYIAAkFAljeiYUC
+GwwACgkQP8Ztr3e3QIO2KAD+NUOcZekVrfgx7STVdx2N9/zaK8cZSVgp2dWJ4DKE
+1PsA+gM9O4+vwInhP8xGtH816FXJtGiw/mAyxCUeRTgi8KEH
+=qbn3
 -----END PGP PUBLIC KEY BLOCK-----
 `

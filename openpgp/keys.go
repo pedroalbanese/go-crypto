@@ -6,14 +6,14 @@ package openpgp
 
 import (
 	"crypto/hmac"
+	"encoding/binary"
+	"io"
+	"time"
+
 	"github.com/keybase/go-crypto/openpgp/armor"
 	"github.com/keybase/go-crypto/openpgp/errors"
 	"github.com/keybase/go-crypto/openpgp/packet"
 	"github.com/keybase/go-crypto/rsa"
-	"io"
-	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 // PublicKeyType is the armor type for a PGP public key.
@@ -31,6 +31,10 @@ type Entity struct {
 	Identities            map[string]*Identity // indexed by Identity.Name
 	BadIdentities         map[string]*Identity
 	Revocations           []*packet.Signature
+	// Revocations that are signed by designated revokers. Reading keys
+	// will not verify these revocations, because it won't have access to
+	// issuers' public keys, API consumers should do this instead (or
+	// not, and just assume that the key is probably revoked).
 	UnverifiedRevocations []*packet.Signature
 	Subkeys               []Subkey
 	BadSubkeys            []BadSubkey
@@ -430,6 +434,8 @@ func ReadEntity(packets *packet.Reader) (*Entity, error) {
 
 	var current *Identity
 	var revocations []*packet.Signature
+
+	designatedRevokers := make(map[uint64]bool)
 EachPacket:
 	for {
 		p, err := packets.Next()
@@ -524,11 +530,16 @@ EachPacket:
 					e.BadIdentities[current.Name] = current
 				}
 			} else if pkt.SigType == packet.SigTypeDirectSignature {
-				// TODO: RFC4880 5.2.1 permits signatures
-				// directly on keys (eg. to bind additional
-				// revocation keys).
-				//spew.Dump(pkt)
-				_ = spew.Dump
+				if err = e.PrimaryKey.VerifyRevocationSignature(pkt); err == nil {
+					if desig := pkt.DesignatedRevoker; desig != nil {
+						// If it's a designated revoker signature, take last 8 octects
+						// of fingerprint as Key ID and save it to designatedRevokers
+						// map. We consult this map later to see if a foreign
+						// revocation should be added to UnverifiedRevocations.
+						keyID := binary.BigEndian.Uint64(desig.Fingerprint[len(desig.Fingerprint)-8:])
+						designatedRevokers[keyID] = true
+					}
+				}
 			} else if current == nil {
 				// NOTE(maxtaco)
 				//
@@ -578,11 +589,14 @@ EachPacket:
 			if err == nil {
 				e.Revocations = append(e.Revocations, revocation)
 			} else {
-				// TODO: RFC 4880 5.2.3.15 defines revocation keys.
 				return nil, errors.StructuralError("revocation signature signed by alternate key")
 			}
 		} else {
-			e.UnverifiedRevocations = append(e.UnverifiedRevocations, revocation)
+			if revocation.IssuerKeyId != nil {
+				if _, ok := designatedRevokers[*revocation.IssuerKeyId]; ok {
+					e.UnverifiedRevocations = append(e.UnverifiedRevocations, revocation)
+				}
+			}
 		}
 	}
 
