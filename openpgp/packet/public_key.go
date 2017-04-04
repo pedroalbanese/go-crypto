@@ -787,8 +787,8 @@ func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err er
 
 // VerifyRevocationSignature returns nil if sig is a valid signature, made by this
 // public key.
-func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+func (pk *PublicKey) VerifyRevocationSignature(revokedKey *PublicKey, sig *Signature) (err error) {
+	h, err := keyRevocationHash(revokedKey, sig.Hash)
 	if err != nil {
 		return err
 	}

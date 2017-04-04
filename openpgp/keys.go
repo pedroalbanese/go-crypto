@@ -26,11 +26,11 @@ var PrivateKeyType = "PGP PRIVATE KEY BLOCK"
 // (which must be a signing key), one or more identities claimed by that key,
 // and zero or more subkeys, which may be encryption keys.
 type Entity struct {
-	PrimaryKey            *packet.PublicKey
-	PrivateKey            *packet.PrivateKey
-	Identities            map[string]*Identity // indexed by Identity.Name
-	BadIdentities         map[string]*Identity
-	Revocations           []*packet.Signature
+	PrimaryKey    *packet.PublicKey
+	PrivateKey    *packet.PrivateKey
+	Identities    map[string]*Identity // indexed by Identity.Name
+	BadIdentities map[string]*Identity
+	Revocations   []*packet.Signature
 	// Revocations that are signed by designated revokers. Reading keys
 	// will not verify these revocations, because it won't have access to
 	// issuers' public keys, API consumers should do this instead (or
@@ -530,7 +530,7 @@ EachPacket:
 					e.BadIdentities[current.Name] = current
 				}
 			} else if pkt.SigType == packet.SigTypeDirectSignature {
-				if err = e.PrimaryKey.VerifyRevocationSignature(pkt); err == nil {
+				if err = e.PrimaryKey.VerifyRevocationSignature(e.PrimaryKey, pkt); err == nil {
 					if desig := pkt.DesignatedRevoker; desig != nil {
 						// If it's a designated revoker signature, take last 8 octects
 						// of fingerprint as Key ID and save it to designatedRevokers
@@ -585,17 +585,17 @@ EachPacket:
 	for _, revocation := range revocations {
 		if revocation.IssuerKeyId == nil || *revocation.IssuerKeyId == e.PrimaryKey.KeyId {
 			// Key revokes itself, something that we can verify.
-			err = e.PrimaryKey.VerifyRevocationSignature(revocation)
+			err = e.PrimaryKey.VerifyRevocationSignature(e.PrimaryKey, revocation)
 			if err == nil {
 				e.Revocations = append(e.Revocations, revocation)
 			} else {
 				return nil, errors.StructuralError("revocation signature signed by alternate key")
 			}
-		} else {
-			if revocation.IssuerKeyId != nil {
-				if _, ok := designatedRevokers[*revocation.IssuerKeyId]; ok {
-					e.UnverifiedRevocations = append(e.UnverifiedRevocations, revocation)
-				}
+		} else if revocation.IssuerKeyId != nil {
+			if _, ok := designatedRevokers[*revocation.IssuerKeyId]; ok {
+				// Revocation is done by certified designated revoker,
+				// but we can't verify the revocation.
+				e.UnverifiedRevocations = append(e.UnverifiedRevocations, revocation)
 			}
 		}
 	}
