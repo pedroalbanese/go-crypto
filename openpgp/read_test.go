@@ -881,17 +881,14 @@ func TestRevokedIdentityKey(t *testing.T) {
 		t.Fatalf("Failed to read key: %v", err)
 	}
 	entity := el[0]
-	if len(entity.Identities) != 1 {
-		t.Fatal("Expected one identity")
+	if len(entity.Identities) != 2 {
+		t.Fatal("Expected two identities")
 	}
-	if len(entity.BadIdentities) != 1 {
-		t.Fatal("Expected one bad identity")
-	}
-	if _, ok := entity.Identities["This One WIll be rev0ked"]; !ok {
+	if id, ok := entity.Identities["This One WIll be rev0ked"]; ok && id.Revocation != nil {
 		t.Fatalf("Unexpected valid identity (%v)", entity.Identities)
 	}
-	if _, ok := entity.BadIdentities["Hello AA"]; !ok {
-		t.Fatalf("Unexpected bad identity (%v)", entity.BadIdentities)
+	if id, ok := entity.Identities["Hello AA"]; ok && id.Revocation == nil {
+		t.Fatalf("Unexpected bad identity (%v)", entity.Identities)
 	}
 }
 

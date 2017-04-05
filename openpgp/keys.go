@@ -26,11 +26,10 @@ var PrivateKeyType = "PGP PRIVATE KEY BLOCK"
 // (which must be a signing key), one or more identities claimed by that key,
 // and zero or more subkeys, which may be encryption keys.
 type Entity struct {
-	PrimaryKey    *packet.PublicKey
-	PrivateKey    *packet.PrivateKey
-	Identities    map[string]*Identity // indexed by Identity.Name
-	BadIdentities map[string]*Identity
-	Revocations   []*packet.Signature
+	PrimaryKey  *packet.PublicKey
+	PrivateKey  *packet.PrivateKey
+	Identities  map[string]*Identity // indexed by Identity.Name
+	Revocations []*packet.Signature
 	// Revocations that are signed by designated revokers. Reading keys
 	// will not verify these revocations, because it won't have access to
 	// issuers' public keys, API consumers should do this instead (or
@@ -411,7 +410,6 @@ func readToNextPublicKey(packets *packet.Reader) (err error) {
 func ReadEntity(packets *packet.Reader) (*Entity, error) {
 	e := new(Entity)
 	e.Identities = make(map[string]*Identity)
-	e.BadIdentities = make(map[string]*Identity)
 
 	p, err := packets.Next()
 	if err != nil {
@@ -494,7 +492,6 @@ EachPacket:
 			// signature to overwrite the earlier signature if so doing won't
 			// trash the key flags.
 			if current != nil &&
-				current.Revocation == nil &&
 				(current.SelfSignature == nil ||
 					(!pkt.CreationTime.Before(current.SelfSignature.CreationTime) &&
 						(pkt.FlagsValid || !current.SelfSignature.FlagsValid))) &&
@@ -522,12 +519,10 @@ EachPacket:
 				}
 			} else if current != nil && pkt.SigType == packet.SigTypeIdentityRevocation {
 				if err = e.PrimaryKey.VerifyUserIdSignature(current.Name, e.PrimaryKey, pkt); err == nil {
+					// Note: we are not removing the identity from
+					// e.Identities. Caller can always filter by Revocation
+					// field to ignore revoked identities.
 					current.Revocation = pkt
-
-					// Remove current from Identities, because the revocation signature
-					// might come after the certification signature.
-					delete(e.Identities, current.Name)
-					e.BadIdentities[current.Name] = current
 				}
 			} else if pkt.SigType == packet.SigTypeDirectSignature {
 				if err = e.PrimaryKey.VerifyRevocationSignature(e.PrimaryKey, pkt); err == nil {
