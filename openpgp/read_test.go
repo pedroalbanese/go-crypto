@@ -875,38 +875,6 @@ func TestMessageEncryptionRoundtripWithPassphraseChange(t *testing.T) {
 	}
 }
 
-func TestRevokedIdentityKey(t *testing.T) {
-	el, err := ReadArmoredKeyRing(bytes.NewBufferString(revokedIdentityKey))
-	if err != nil || len(el) != 1 {
-		t.Fatalf("Failed to read key: %v", err)
-	}
-	entity := el[0]
-	if len(entity.Identities) != 2 {
-		t.Fatal("Expected two identities")
-	}
-	if id, ok := entity.Identities["This One WIll be rev0ked"]; ok && id.Revocation != nil {
-		t.Fatalf("Unexpected valid identity (%v)", entity.Identities)
-	}
-	if id, ok := entity.Identities["Hello AA"]; ok && id.Revocation == nil {
-		t.Fatalf("Unexpected bad identity (%v)", entity.Identities)
-	}
-}
-
-func TestDesignatedRevoker(t *testing.T) {
-	el, err := ReadArmoredKeyRing(bytes.NewBufferString(designatedRevokedKey))
-	if err != nil || len(el) != 1 {
-		t.Fatalf("Failed to read key: %v", err)
-	}
-	entity := el[0]
-	if len(entity.Revocations) != 0 || len(entity.UnverifiedRevocations) != 1 {
-		t.Fatal("Expected unverified revocation")
-	}
-	rev := entity.UnverifiedRevocations[0]
-	if issuer := *rev.IssuerKeyId; issuer != 0x9AD4C1F7C4EE24FE {
-		t.Fatalf("Unexpected revocation issuer: %x", issuer)
-	}
-}
-
 const testKey1KeyId = 0xA34D7E18C20C31BB
 const testKey3KeyId = 0x338934250CCC0360
 
@@ -2633,45 +2601,5 @@ XA/h4QtRlXR4EfX/43opwPYnT/WzImlXzYYJwmcEGBYKAA8FAljQ51oFCQ8JnAAC
 GwgACgkQbs3PeMvPQIwf4QEAFfAR5rdFl2bj2UqhW7S2UL7eb7sgdibqXU/a66hL
 HMgBAPaACKEEt5+mQvLioH2wDPn2Wm2oPd+7XeuGB+ex8JwD
 =vkDo
------END PGP PUBLIC KEY BLOCK-----
-`
-
-// Public key that has two identities, one of which is revoked.
-const revokedIdentityKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
-
-mDMEWOIZOBYJKwYBBAHaRw8BAQdAOw15aNPr+v1ACWdSwaKmT+vAfpZJu2aiX/ED
-NR70fYm0GFRoaXMgT25lIFdJbGwgYmUgcmV2MGtlZIh5BBMWCAAhBQJY4hlKAhsD
-BQsJCAcCBhUICQoLAgQWAgMBAh4BAheAAAoJEIUbNJhCKy361LQBAPH+mCf0r0z9
-SZXw4B8fJ+jCl//0ato6Nk8bsedA2MyjAP4tx/h9XHjmANhKpue9YCyUFdV2NSKs
-TIJ/EpNwz1QjArQISGVsbG8gQUGIYQQwFggACQUCWOIZcgIdIAAKCRCFGzSYQist
-+nW9AQCaXyyTOmUw9gaw0SsS27NLtsYcu/affY4KLYQRW2ZjlgD9GLR5IKYtlX21
-n/8Gw7KAuHaIQLK+wcbXnFabzM7TYA2IeQQTFggAIQUCWOIZOAIbAwULCQgHAgYV
-CAkKCwIEFgIDAQIeAQIXgAAKCRCFGzSYQist+lGFAP9EFlJ0BCgOe6ART8xk93f3
-fF+wOdMzdQ+6hni8wqW3OQEAq3VufchOPYJSL4fA+Oq7uEw5Z5Q9tBViES2Br7+I
-1Au4OARY4hk4EgorBgEEAZdVAQUBAQdAAfA2+lbpmA1YXqHefB8gShHq201PsJmA
-AQ2EB67c/XcDAQgHiGEEGBYIAAkFAljiGTgCGwwACgkQhRs0mEIrLfqOYwD/TaDI
-Y81Z5IXtMVSMjg7sgNI93W9+xY5u0fHH5KThko4BAM7utt+MrMl67IrSLj0HLtVt
-iO3AEa577DoHC0fseUgG
-=uJYe
------END PGP PUBLIC KEY BLOCK-----
-`
-
-// Key that has a designated revoker direct sig and also a designated
-// revocation signature.
-const designatedRevokedKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
-
-mDMEWN6JhRYJKwYBBAHaRw8BAQdA6NMRLTcnG9zXYIlH8aTxXttm6Ibnd+JcdnZR
-7ZaarAOIYQQgFggACQUCWN6J+wIdAwAKCRCa1MH3xO4k/kqzAQCJRWV9XtLuBALs
-pLfqb3V8+dumX9dNZhzrJejoOyNwIwEAzjpTdaSApbvfdon0ndf05UB+hkR2Sal5
-bDXHANjltAiIeQQfFggAIQUCWN6J0RcMgBbsLs6ylR7EOEBNML2a1MH3xO4k/gIH
-AAAKCRA/xm2vd7dAgxE6AP45XxRMDBG4MSvyqZw3zQ3XT0DzZyDfwmh4bNd2FZJg
-lgD9ErTgyWuxVo4c/k/W6vowu6tV0rhMjH9MfwxmzY20igu0B1Jldm9rZWWIeQQT
-FggAIQUCWN6JhQIbAwULCQgHAgYVCAkKCwIEFgIDAQIeAQIXgAAKCRA/xm2vd7dA
-g0wmAPwOALfHBhKEiMTxCtAJ4ynJLiVXYmb+AdxLb6Q+ISmNuAEAt6uDcdM9pfX8
-BjB78WoVjkxwRZpIMM3tcjz6VcR15w+4OARY3omFEgorBgEEAZdVAQUBAQdApcyK
-X+duQaFIZV882qD8PZd3b9qS/ZN1EJSBOkJNiWQDAQgHiGEEGBYIAAkFAljeiYUC
-GwwACgkQP8Ztr3e3QIO2KAD+NUOcZekVrfgx7STVdx2N9/zaK8cZSVgp2dWJ4DKE
-1PsA+gM9O4+vwInhP8xGtH816FXJtGiw/mAyxCUeRTgi8KEH
-=qbn3
 -----END PGP PUBLIC KEY BLOCK-----
 `
