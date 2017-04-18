@@ -875,3 +875,31 @@ func (e *Entity) CopySubkeyRevocations(src *Entity) {
 		}
 	}
 }
+
+// CheckDesignatedRevokers will try to confirm any of designated
+// revocation of entity. For this function to work, revocation
+// issuer's key should be found in keyring, otherwise it will return
+// false, nil if keys are not found (meaning: revocation not
+// confirmed).
+func CheckDesignatedRevokers(keyring KeyRing, entity *Entity) (bool, *Key) {
+	for _, sig := range entity.UnverifiedRevocations {
+		if sig.IssuerKeyId == nil {
+			continue
+		}
+
+		issuerKeyId := *sig.IssuerKeyId
+		issuerFingerprint := sig.IssuerFingerprint
+		keys := keyring.KeysByIdUsage(issuerKeyId, issuerFingerprint, packet.KeyFlagSign)
+		if len(keys) == 0 {
+			continue
+		}
+		for _, key := range keys {
+			err := key.PublicKey.VerifyRevocationSignature(entity.PrimaryKey, sig)
+			if err == nil {
+				return true, &key
+			}
+		}
+	}
+
+	return false, nil
+}
