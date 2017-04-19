@@ -7,6 +7,48 @@ import (
 	"github.com/keybase/go-crypto/openpgp/packet"
 )
 
+func TestRevokedKey(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(revokedKey1))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read key: %v", err)
+	}
+	entity := el[0]
+	if revLen := len(entity.Revocations); revLen != 1 {
+		t.Fatalf("Expected to see 1 revocation, got %v", revLen)
+	}
+	if urevLen := len(entity.UnverifiedRevocations); urevLen != 0 {
+		t.Fatalf("Expected to see 0 unverified revocations, got %v", urevLen)
+	}
+	iden, ok := entity.Identities["Alice"]
+	if !ok {
+		t.Fatal("Expected to find \"Alice\" identity.")
+	}
+	if iden.SelfSignature == nil {
+		t.Fatal("Identity.SelfSignature is nil.")
+	}
+	if idenLen := len(iden.Signatures); idenLen != 0 {
+		t.Fatalf("Expected to see 0 Identity.Signatures, got %v", idenLen)
+	}
+}
+
+func TestKeyRevocation2(t *testing.T) {
+	kring, err := ReadKeyRing(readerFromHex(revokedKeyHex))
+	if err != nil || len(kring) != 1 {
+		t.Fatalf("Failed to read key: %v", err)
+	}
+	key := kring[0]
+	if len(key.Revocations) != 1 {
+		t.Fatalf("Expected to see one revocation.")
+	}
+	revocation := kring[0].Revocations[0]
+	if *revocation.IssuerKeyId != key.PrimaryKey.KeyId {
+		t.Fatalf("Expected IsserKeyId to be %x, got %x", key.PrimaryKey.KeyId, *revocation.IssuerKeyId)
+	}
+	if revocation.RevocationReason == nil {
+		t.Fatal("Expected revocation reason not to be nil.")
+	}
+}
+
 func TestRevokedIdentityKey(t *testing.T) {
 	el, err := ReadArmoredKeyRing(bytes.NewBufferString(revokedIdentityKey))
 	if err != nil || len(el) != 1 {
@@ -36,6 +78,17 @@ func TestDesignatedRevoker(t *testing.T) {
 	rev := entity.UnverifiedRevocations[0]
 	if issuer := *rev.IssuerKeyId; issuer != 0x9AD4C1F7C4EE24FE {
 		t.Fatalf("Unexpected revocation issuer: %x", issuer)
+	}
+
+	// Designated revocation should not affect KeysByIdUsage searching.
+	id := uint64(4595481070173372547)
+	keys := el.KeysById(id, nil)
+	if len(keys) != 1 {
+		t.Errorf("Expected KeysById to find revoked key %X, but got %d matches", id, len(keys))
+	}
+	keys = el.KeysByIdUsage(id, nil, 0)
+	if len(keys) != 1 {
+		t.Errorf("Expected KeysByIdUsage to revoked key %X, but got %d matches", id, len(keys))
 	}
 }
 
@@ -99,6 +152,9 @@ func TestDesignatedBadSig(t *testing.T) {
 		t.Fatalf("Failed to read key: %v", err)
 	}
 	entity := el[0]
+	if len(entity.UnverifiedRevocations) != 1 {
+		t.Fatal("Expected one unverified revocation.")
+	}
 	// Break UnverifiedRevocation signature, it should not pass
 	// verification in FindVerifiedDesignatedRevoke anymore.
 	entity.UnverifiedRevocations[0].EdDSASigR = packet.FromBytes([]byte{0x01, 0x02, 0x03})
@@ -109,6 +165,52 @@ func TestDesignatedBadSig(t *testing.T) {
 		t.Fatal("FindVerifiedDesignatedRevoke did not fail verification")
 	}
 }
+
+func TestMisplacedRevocation(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(keyMisplacedRevocation))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read key: %v", err)
+	}
+	entity := el[0]
+	if len(entity.Revocations) != 1 {
+		t.Fatal("Expected revocation")
+	}
+	iden, ok := entity.Identities["Alice"]
+	if !ok {
+		t.Fatal("Expected to find \"Alice\" identity.")
+	}
+	if iden.SelfSignature == nil {
+		t.Fatal("Identity.SelfSignature is nil.")
+	}
+	if idenLen := len(iden.Signatures); idenLen != 0 {
+		t.Fatalf("Expected to see 0 Identity.Signatures, got %v", idenLen)
+	}
+}
+
+// Self-revoked key
+const revokedKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQFCBFj3GqwRAwC922rw75mP/WuF/wdZOcAPVfqukqGd5S5x7ajUGi77sXqqhAnr
+j+XsneekldcHqlJuti7IHxMcbOZQN0rYinpk6ODfB3J1ShcHTC2IpWsngzt+tL6V
+zSIXbR5rLUGg2RMAoPMi18hqBq8xQQDG2rEWCRybRvnvAv0axMy37OAeye6Ky8m2
+0l1vDFeNO7/OH9eO5oNEwNuVG/shjZkGTD/YuB8huPvcyMR3xxs6Qmjn0XRfUWxt
+xPvfctP9HS7MPeDqa/DsMZ5hh7B1eiwmk2cj5E6ZOFk2G8sC/jtcA3wVF7eHsJvA
+CL14MLeQ9g+04CT7VhvPt2f3X3GF7XQ/2pgBfnzDi26VU9ND75NBmwVulbJw8QG7
+JOpMi3FeHhsWtbQGcZg3Vcw8IamnqhEaFJ9Nb/hV4rKm0IXfgohJBCARAgAJBQJY
+9xqvAh0AAAoJEDl/NacbGDDEyDYAn3QKeWn52B9lHes3pNlRqFS4/VlvAJ9DP+Kf
+Ec8PxRr9qYH8KpacyYWua7QFQWxpY2WIYQQTEQIAIQUCWPcarAIbAwULCQgHAgYV
+CAkKCwIEFgIDAQIeAQIXgAAKCRA5fzWnGxgwxB00AJ4inWM/H4FuFxd8A2TmmN1J
+nb/W7ACgozlKd8s90o72ccJq4zxLLOC/ik25AQ0EWPcarBAEAMNfbgy0zfpDz6zi
+kU+9ysCnQPaAQjNrFCu3JnJ29TGTRjGq95NOYgaU3/guAf8d1QSBAPzC+c+o/TWQ
+2+y6qKJnZbsvFzVjBiJW6zpFDyWvupfATzKE3rsWYeyCwdPfwHTejWGXeoJKkSAy
+em+0wm2VI6CKRsrf88UCwD9wk7VrAAMFBAC1+2hcC1TcJuZwwhDd3xllXgrMHGyG
+I92RmaTjttJgOvlN5Pyz6q5HgB5EFkzbW3YCGm/YY+KTXKWUp9u2Eh9cc8R9Pm7c
+HzJlEINC+VMe/+Nzd15ceySNGNIUW6D9OTtzMmgrkXCvRnZ0DDsnexVOM4pI6Up4
+afCdmQfHhocmZ4hJBBgRAgAJBQJY9xqsAhsMAAoJEDl/NacbGDDEsCgAn2RJ+SJB
+i7W/Rh1FjTXpL+d7zPqzAJ0Vzhg3SkrLt8/VGRRSJRUMpb4bPw==
+=w/2P
+-----END PGP PUBLIC KEY BLOCK-----
+`
 
 // Public key that has two identities, one of which is revoked.
 const revokedIdentityKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -182,5 +284,32 @@ BFj2OR8SCisGAQQBl1UBBQEBB0A3KqdTAoZN2mMJfwvKwbC8Ibv7cDjHL+2zGm+R
 Sm3K1NCp/0bIlRI/aFycA65lhHNoIZgPZwEApkjPInTzm1ZyVl4zgZxFltLgPbnU
 J25shXYSVsIQJQ0=
 =wIyY
+-----END PGP PUBLIC KEY BLOCK-----
+`
+
+// In this bundle, key revocation packet appears after identities.
+// gpg2 does not mark that key as revoked, we are more flexible in
+// uid/subkey parsing so we happen to mark that key as revoked.
+const keyMisplacedRevocation = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+xsCCBFj3GqwRAwC922rw75mP/WuF/wdZOcAPVfqukqGd5S5x7ajUGi77sXqqhAnr
+j+XsneekldcHqlJuti7IHxMcbOZQN0rYinpk6ODfB3J1ShcHTC2IpWsngzt+tL6V
+zSIXbR5rLUGg2RMAoPMi18hqBq8xQQDG2rEWCRybRvnvAv0axMy37OAeye6Ky8m2
+0l1vDFeNO7/OH9eO5oNEwNuVG/shjZkGTD/YuB8huPvcyMR3xxs6Qmjn0XRfUWxt
+xPvfctP9HS7MPeDqa/DsMZ5hh7B1eiwmk2cj5E6ZOFk2G8sC/jtcA3wVF7eHsJvA
+CL14MLeQ9g+04CT7VhvPt2f3X3GF7XQ/2pgBfnzDi26VU9ND75NBmwVulbJw8QG7
+JOpMi3FeHhsWtbQGcZg3Vcw8IamnqhEaFJ9Nb/hV4rKm0IXfgs0FQWxpY2XCYQQT
+EQIAIQUCWPcarAIbAwULCQgHAgYVCAkKCwIEFgIDAQIeAQIXgAAKCRA5fzWnGxgw
+xB00AJ4inWM/H4FuFxd8A2TmmN1Jnb/W7ACgozlKd8s90o72ccJq4zxLLOC/ik3C
+SQQgEQIACQUCWPcarwIdAAAKCRA5fzWnGxgwxMg2AJ90Cnlp+dgfZR3rN6TZUahU
+uP1ZbwCfQz/inxHPD8Ua/amB/CqWnMmFrmvOwE0EWPcarBAEAMNfbgy0zfpDz6zi
+kU+9ysCnQPaAQjNrFCu3JnJ29TGTRjGq95NOYgaU3/guAf8d1QSBAPzC+c+o/TWQ
+2+y6qKJnZbsvFzVjBiJW6zpFDyWvupfATzKE3rsWYeyCwdPfwHTejWGXeoJKkSAy
+em+0wm2VI6CKRsrf88UCwD9wk7VrAAMFBAC1+2hcC1TcJuZwwhDd3xllXgrMHGyG
+I92RmaTjttJgOvlN5Pyz6q5HgB5EFkzbW3YCGm/YY+KTXKWUp9u2Eh9cc8R9Pm7c
+HzJlEINC+VMe/+Nzd15ceySNGNIUW6D9OTtzMmgrkXCvRnZ0DDsnexVOM4pI6Up4
+afCdmQfHhocmZ8JJBBgRAgAJBQJY9xqsAhsMAAoJEDl/NacbGDDEsCgAn2RJ+SJB
+i7W/Rh1FjTXpL+d7zPqzAJ0Vzhg3SkrLt8/VGRRSJRUMpb4bPw==
+=riYc
 -----END PGP PUBLIC KEY BLOCK-----
 `

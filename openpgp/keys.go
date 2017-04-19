@@ -458,6 +458,7 @@ EachPacket:
 				// because key might have revocation coming from
 				// another key (designated revoke).
 				revocations = append(revocations, pkt)
+				continue
 			}
 
 			// These are signatures by other people on this key. Let's just ignore them

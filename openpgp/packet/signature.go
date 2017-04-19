@@ -36,6 +36,8 @@ type Signer interface {
 	PublicKeyAlgo() PublicKeyAlgorithm
 }
 
+// RevocationKey represents designated revoker packet. See RFC 4880
+// section 5.2.3.15 for details.
 type RevocationKey struct {
 	Class         byte
 	PublicKeyAlgo PublicKeyAlgorithm
@@ -103,6 +105,9 @@ type Signature struct {
 	// from being applied to a primary or subkey.
 	StubbedOutCriticalError error
 
+	// DesignaterRevoker will be present if this signature certifies a
+	// designated revoking key id (3rd party key that can sign
+	// revocation for this key).
 	DesignatedRevoker *RevocationKey
 
 	outSubpackets []outputSubpacket
