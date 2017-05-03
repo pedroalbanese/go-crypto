@@ -875,6 +875,23 @@ func TestMessageEncryptionRoundtripWithPassphraseChange(t *testing.T) {
 	}
 }
 
+func TestIllformedArmors(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(noNewLinesKey))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read noNewLinesKey: %v", err)
+	}
+
+	el, err = ReadArmoredKeyRing(bytes.NewBufferString(noNewlinesKey2))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read noNewlinesKey2: %v", err)
+	}
+
+	el, err = ReadArmoredKeyRing(bytes.NewBufferString(noCRCKey))
+	if err != nil || len(el) != 1 {
+		t.Fatalf("Failed to read noCRCKey: %v", err)
+	}
+}
+
 const testKey1KeyId = 0xA34D7E18C20C31BB
 const testKey3KeyId = 0x338934250CCC0360
 
@@ -2601,5 +2618,61 @@ XA/h4QtRlXR4EfX/43opwPYnT/WzImlXzYYJwmcEGBYKAA8FAljQ51oFCQ8JnAAC
 GwgACgkQbs3PeMvPQIwf4QEAFfAR5rdFl2bj2UqhW7S2UL7eb7sgdibqXU/a66hL
 HMgBAPaACKEEt5+mQvLioH2wDPn2Wm2oPd+7XeuGB+ex8JwD
 =vkDo
+-----END PGP PUBLIC KEY BLOCK-----
+`
+
+// Keys with ill-formed armors - either without CRC or without proper
+// newlines.
+
+const noNewLinesKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+` +
+	"mDMEWQoA2RYJKwYBBAHaRw8BAQdAQkGkdMrckk67dh9MKxeCa8PJsTnMJ+oDgCJ9" +
+	"7gvM60G0E1JFQUQgVEVTVCBHTy1DUllQVE+IeQQTFggAIQUCWQoA2QIbAwULCQgH" +
+	"AgYVCAkKCwIEFgIDAQIeAQIXgAAKCRBEkPOnE4+R/RiKAQDvIhM74qEtKSbTtu50" +
+	"mMB49eTAMg/MogyFA8SUCbStPAEAxdxSKX1hFYFP4N8ML8BgLOJG4PXAdQ8wnfXD" +
+	`vJxN/AQ=
+=apgr
+-----END PGP PUBLIC KEY BLOCK-----`
+
+const noNewlinesKey2 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1.4.14 (GNU/Linux)
+
+` +
+	"mQENBFM2jy4BCAC41SHJRtrpz0BNJmij7cnXAWow1Vm1XwNLXPGFutMgu+V2sW23" +
+	"lSumQdtX9dBjl5+Cg4tKG9g1dVq6uwT3+YeNkm++V7v/atzZDdkDFbTW4C3KGEE+" +
+	"lk30CWdBQbls+acpUdK7ESJxcvbR7/HCbOUy+0+58LEz24TzsHTvGCWbG2AQ0ZkK" +
+	"UxB6vLfFcQSa60Z57mHZAZmg0N+96P7Kx7RAFivRFrrUpgWny76dbo3hsuEn0bzv" +
+	"PcRlNNJKTfkvQz8naQbsZBiT/gOjwsy3W2bGjYB3YTRlq7QNT5em8jFuYFXB74Pl" +
+	"QN7nkYHZfNuLAAE19kOxeeOisAtOqhpq0N0XABEBAAG0H1J5YW4gS29pcyA8cnlh" +
+	"bi5rb2lzQGdtYWlsLmNvbT6JATgEEwECACIFAlM2jy4CGwMGCwkIBwMCBhUIAgkK" +
+	"CwQWAgMBAh4BAheAAAoJEC294S54YdOEFlEH/3vPylm1ofhY23mrGR2C3mvSBkzd" +
+	"Aq5lvivxSx/N55N7Y4ZdALe6TCQyQSwSVsTGw20fXuYvOCJ52jOPQIti9XjDXm6P" +
+	"xTsEmDBl1M/BZXiXSqoOxMn0KdrqQs5HANIkksauNh1AJZDaPzB5MoO+hb5AVEE4" +
+	"ufx+BvBWN8n3C+BKiKdhcb9r9FpaIcsHB6lmyJ+ajP/5Hbp/XQ4ZhndMuuroSEC9" +
+	"rmjUB5paPNyMs5ZXBNJ1YU/6K2sLYdlQZEI1hN14BuzaEvhk92N30On38OEDTDYs" +
+	"E+N47fJZhhgG6Hemi8icr5Y/XcZwENfo9gCLYftFt7nvHVRVcKaIpdSQRFi5AQ0E" +
+	"UzaPLgEIAK2o0vmXmAaZUH9VjE43GkTIG7favZswBIsDKG1HFni1VMS8mBsbLD9+" +
+	"YgtsBJdlbmyEmcB8xzgatXrTFRT1JAwDfSzKEtkx40TclM9QZ4D39OWpg5VRcpPD" +
+	"4G4YripIKoIx2ICsAMewqVuaqXsjM7+Piya7wAFBqza55Wnp66RSimPSjzojhn0I" +
+	"5JbVJ01KXDJ8jMBoyCxr8noNRt9sF+xhPd/4RcfG+B3G2rQ/07sflyCDWsEZHzc9" +
+	"Rgnq4yu3/Jagf8kC8S1RcFSocGDaQtwnrJRaVoKo4708YB07hMVk66DETIQG3YUs" +
+	"zr1F7Iot3wr5sW9YeyN47UqekJO/hDsAEQEAAYkBHwQYAQIACQUCUzaPLgIbDAAK" +
+	"CRAtveEueGHThAh1CACBMdAg+Gu1MdGkcAZpSeUeRZ53RfYRVNYLFSaRi7elOSZv" +
+	"f0RO+7+lbIZojYmCju8jp7J0e9htdo/10uQsgaMpAPSZVG6ZUydkUWOgVnsNNrxZ" +
+	"rZMxH35AHU8x8VeZZzzgNxBWybvEJouBwBRUdqXC1yFxcNBEO+QMuLPlH+Sn8kLN" +
+	"mB2j/tiFP/L7bIvyYTLPRa+4/8zwW6XWXpCSuDTp653K7PkYmgkU64ctbJFr91AC" +
+	"U/lDgsMdjZlLGjvVwQNvh8uQcO2hJzA0MjvUTKmKg+qwe5nVYJ7Sm+n2RwTfmIOZ" +
+	`i6OWaPnUwuDBWTY59LkEeAKnilLJfpPQCK7fANEe
+=O610
+-----END PGP PUBLIC KEY BLOCK-----`
+
+const noCRCKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEWQoA2RYJKwYBBAHaRw8BAQdAQkGkdMrckk67dh9MKxeCa8PJsTnMJ+oDgCJ9
+7gvM60G0E1JFQUQgVEVTVCBHTy1DUllQVE+IeQQTFggAIQUCWQoA2QIbAwULCQgH
+AgYVCAkKCwIEFgIDAQIeAQIXgAAKCRBEkPOnE4+R/RiKAQDvIhM74qEtKSbTtu50
+mMB49eTAMg/MogyFA8SUCbStPAEAxdxSKX1hFYFP4N8ML8BgLOJG4PXAdQ8wnfXD
+vJxN/AQ=
 -----END PGP PUBLIC KEY BLOCK-----
 `
