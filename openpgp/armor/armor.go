@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"io"
 	"strings"
+	"unicode"
 
 	"github.com/keybase/go-crypto/openpgp/errors"
 )
@@ -158,6 +159,13 @@ func (r *openpgpReader) Read(p []byte) (n int, err error) {
 	return
 }
 
+// ourIsSpace checks if a rune is either space according to unicode
+// package, or ZeroWidthSpace (which is not a space according to
+// unicode module). Used to trim lines during header reading.
+func ourIsSpace(r rune) bool {
+	return r == '\u200b' || unicode.IsSpace(r)
+}
+
 // Decode reads a PGP armored block from the given Reader. It will ignore
 // leading garbage. If it doesn't find a block, it will return nil, io.EOF. The
 // given Reader is not usable after calling this function: an arbitrary amount
@@ -204,7 +212,7 @@ TryNextBlock:
 			p.Header[lastKey] += string(line)
 			continue
 		}
-		line = bytes.TrimSpace(line)
+		line = bytes.TrimFunc(line, ourIsSpace)
 		if len(line) == 0 {
 			break
 		}

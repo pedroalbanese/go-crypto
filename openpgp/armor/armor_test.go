@@ -70,6 +70,14 @@ func TestLongHeader(t *testing.T) {
 	}
 }
 
+func TestZeroWidthSpace(t *testing.T) {
+	buf := bytes.NewBuffer([]byte(armorZeroWidthSpace))
+	_, err := Decode(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 const armorExample1 = `-----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.4.10 (GNU/Linux)
 
@@ -94,3 +102,14 @@ okWuf3+xA9ksp1npSY/mDvgHijmjvtpRDe6iUeqfCn8N9u9CBg8geANgaG8+QA4=
 -----END PGP SIGNATURE-----`
 
 const longValueExpected = "0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
+
+const armorZeroWidthSpace = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+` + "\u200b" + `
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm
+4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
+p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
+TxRjs+fJCIFuo71xb1g=
+=/teI
+-----END PGP SIGNATURE-----
+`
