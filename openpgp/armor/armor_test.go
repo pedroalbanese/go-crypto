@@ -71,10 +71,29 @@ func TestLongHeader(t *testing.T) {
 }
 
 func TestZeroWidthSpace(t *testing.T) {
-	buf := bytes.NewBuffer([]byte(armorZeroWidthSpace))
-	_, err := Decode(buf)
+	result, err := Decode(bytes.NewBuffer([]byte(armorZeroWidthSpace)))
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	_, err = ioutil.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("Error after ReadAll: %+v", err)
+	}
+
+	result, err = Decode(bytes.NewBuffer([]byte(armorMoreZeroWidths)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ioutil.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("Error after ReadAll: %+v", err)
+	}
+
+	if result.lReader.crc == nil {
+		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
+		t.Error("Expected CRC to be read")
 	}
 }
 
@@ -113,3 +132,13 @@ TxRjs+fJCIFuo71xb1g=
 =/teI
 -----END PGP SIGNATURE-----
 `
+
+const armorMoreZeroWidths = `-----BEGIN PGP SIGNATURE-----` + "\u200b" + `
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm` + "\u200b" + `
+4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
+` + "\u200b" + `p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
+TxRjs+fJCIFuo71xb1g=` + "\u200b" + `
+` + "\u200b" + `=/teI
+-----END PGP SIGNATURE-----`

@@ -71,6 +71,13 @@ type lineReader struct {
 	crc *uint32
 }
 
+// ourIsSpace checks if a rune is either space according to unicode
+// package, or ZeroWidthSpace (which is not a space according to
+// unicode module). Used to trim lines during header reading.
+func ourIsSpace(r rune) bool {
+	return r == '\u200b' || unicode.IsSpace(r)
+}
+
 func (l *lineReader) Read(p []byte) (n int, err error) {
 	if l.eof {
 		return 0, io.EOF
@@ -86,6 +93,8 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
+
+	line = bytes.TrimFunc(line, ourIsSpace)
 
 	if len(line) == 5 && line[0] == '=' {
 		// This is the checksum line
@@ -157,13 +166,6 @@ func (r *openpgpReader) Read(p []byte) (n int, err error) {
 	}
 
 	return
-}
-
-// ourIsSpace checks if a rune is either space according to unicode
-// package, or ZeroWidthSpace (which is not a space according to
-// unicode module). Used to trim lines during header reading.
-func ourIsSpace(r rune) bool {
-	return r == '\u200b' || unicode.IsSpace(r)
 }
 
 // Decode reads a PGP armored block from the given Reader. It will ignore
