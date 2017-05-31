@@ -748,7 +748,7 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		return err
 	}
 
-	if sig.FlagSign {
+	if sig.KeyFlags.HasFlagSign() {
 
 		// BUG(maxtaco)
 		//
