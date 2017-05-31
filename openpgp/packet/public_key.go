@@ -66,7 +66,7 @@ type edDSAkey struct {
 
 func copyFrontFill(dst, src []byte, length int) int {
 	if srcLen := len(src); srcLen < length {
-		return copy(dst[length - srcLen:], src[:])
+		return copy(dst[length-srcLen:], src[:])
 	} else {
 		return copy(dst[:], src[:])
 	}
@@ -748,7 +748,7 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		return err
 	}
 
-	if sig.KeyFlags.HasFlagSign() {
+	if sig.FlagSign {
 
 		// BUG(maxtaco)
 		//

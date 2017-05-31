@@ -82,10 +82,10 @@ type Signature struct {
 	IsPrimaryId                                             *bool
 	IssuerFingerprint                                       []byte
 
-	// KeyFlags is set if any flags were given. See RFC 4880, section
-	// 5.2.3.21 for details. To see if there were any flags, check
-	// KeyFlags.Valid boolean field.
-	KeyFlags KeyFlagBits
+	// FlagsValid is set if any flags were given. See RFC 4880, section
+	// 5.2.3.21 for details.
+	FlagsValid                                                           bool
+	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage bool
 
 	// RevocationReason is set if this signature has been revoked.
 	// See RFC 4880, section 5.2.3.23 for details.
@@ -384,7 +384,19 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			err = errors.StructuralError("empty key flags subpacket")
 			return
 		}
-		sig.KeyFlags = KeyFlagBits{true, byte(subpacket[0] & (KeyFlagCertify | KeyFlagSign | KeyFlagEncryptCommunications | KeyFlagEncryptStorage))}
+		sig.FlagsValid = true
+		if subpacket[0]&KeyFlagCertify != 0 {
+			sig.FlagCertify = true
+		}
+		if subpacket[0]&KeyFlagSign != 0 {
+			sig.FlagSign = true
+		}
+		if subpacket[0]&KeyFlagEncryptCommunications != 0 {
+			sig.FlagEncryptCommunications = true
+		}
+		if subpacket[0]&KeyFlagEncryptStorage != 0 {
+			sig.FlagEncryptStorage = true
+		}
 	case reasonForRevocationSubpacket:
 		// Reason For Revocation, section 5.2.3.23
 		if !isHashed {
@@ -792,8 +804,8 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 
 	// Key flags may only appear in self-signatures or certification signatures.
 
-	if sig.KeyFlags.Valid {
-		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, false, []byte{sig.KeyFlags.BitField}})
+	if sig.FlagsValid {
+		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, false, []byte{sig.GetKeyFlags().BitField}})
 	}
 
 	// The following subpackets may only appear in self-signatures
@@ -821,6 +833,27 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	}
 
 	return
+}
+
+func (sig *Signature) GetKeyFlags() (ret KeyFlagBits) {
+	if !sig.FlagsValid {
+		return ret
+	}
+
+	ret.Valid = true
+	if sig.FlagCertify {
+		ret.BitField |= KeyFlagCertify
+	}
+	if sig.FlagSign {
+		ret.BitField |= KeyFlagSign
+	}
+	if sig.FlagEncryptCommunications {
+		ret.BitField |= KeyFlagEncryptCommunications
+	}
+	if sig.FlagEncryptStorage {
+		ret.BitField |= KeyFlagEncryptStorage
+	}
+	return ret
 }
 
 func (f *KeyFlagBits) HasFlagCertify() bool {
