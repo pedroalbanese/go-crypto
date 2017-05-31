@@ -222,16 +222,20 @@ func (el EntityList) KeysById(id uint64, fp []byte) (keys []Key) {
 	for _, e := range el {
 		if keyMatchesIdAndFingerprint(e.PrimaryKey, id, fp) {
 			var selfSig *packet.Signature
-			keyFlags := packet.KeyFlagBits{}
-
 			for _, ident := range e.Identities {
 				if selfSig == nil {
 					selfSig = ident.SelfSignature
 				} else if ident.SelfSignature.IsPrimaryId != nil && *ident.SelfSignature.IsPrimaryId {
 					selfSig = ident.SelfSignature
+					break;
 				}
+			}
+
+			var keyFlags packet.KeyFlagBits
+			for _, ident := range e.Identities {
 				keyFlags.Merge(ident.SelfSignature.KeyFlags)
 			}
+
 			keys = append(keys, Key{e, e.PrimaryKey, e.PrivateKey, selfSig, keyFlags})
 		}
 
