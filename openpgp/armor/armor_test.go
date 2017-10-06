@@ -97,6 +97,26 @@ func TestZeroWidthSpace(t *testing.T) {
 	}
 }
 
+func TestNoNewlines(t *testing.T) {
+	result, err := Decode(bytes.NewBuffer([]byte(armorNoNewlines)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = ioutil.ReadAll(result.Body); err != nil {
+		t.Fatalf("Error after ReadAll: %+v", err)
+	}
+
+	result, err = Decode(bytes.NewBuffer([]byte(armorNoNewlines2)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = ioutil.ReadAll(result.Body); err != nil {
+		t.Fatalf("Error after ReadAll: %+v", err)
+	}
+}
+
 const armorExample1 = `-----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.4.10 (GNU/Linux)
 
@@ -142,3 +162,25 @@ iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm` + "\u200b" + `
 TxRjs+fJCIFuo71xb1g=` + "\u200b" + `
 ` + "\u200b" + `=/teI
 -----END PGP SIGNATURE-----`
+
+const armorNoNewlines = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm `+
+`4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt `+
+`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW `+
+`TxRjs+fJCIFuo71xb1g=
+=/teI
+-----END PGP SIGNATURE-----
+`
+
+const armorNoNewlines2 = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
+`4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt     ` +
+`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
+TxRjs+fJCIFuo71xb1g=
+=/teI
+-----END PGP SIGNATURE-----
+`

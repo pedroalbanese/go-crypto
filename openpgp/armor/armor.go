@@ -94,7 +94,12 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		return
 	}
 
-	line = bytes.TrimFunc(line, ourIsSpace)
+	line = bytes.Map(func(r rune) rune {
+		if ourIsSpace(r) {
+			return -1
+		}
+		return r
+	}, line)
 
 	if len(line) == 5 && line[0] == '=' {
 		// This is the checksum line
