@@ -9,6 +9,8 @@ import (
 	"hash/adler32"
 	"io/ioutil"
 	"testing"
+
+	"fmt"
 )
 
 func TestDecodeEncode(t *testing.T) {
@@ -70,27 +72,25 @@ func TestLongHeader(t *testing.T) {
 	}
 }
 
+func decodeAndRead(t *testing.T, armor string) *Block {
+	result, err := Decode(bytes.NewBuffer([]byte(armor)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ioutil.ReadAll(result.Body)
+	if err != nil {
+		fmt.Printf("Failing payload is:\n\n%s\n", armor)
+		t.Fatalf("Error after ReadAll: %+v", err)
+	}
+
+	return result
+}
+
 func TestZeroWidthSpace(t *testing.T) {
-	result, err := Decode(bytes.NewBuffer([]byte(armorZeroWidthSpace)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	decodeAndRead(t, armorZeroWidthSpace)
 
-	_, err = ioutil.ReadAll(result.Body)
-	if err != nil {
-		t.Fatalf("Error after ReadAll: %+v", err)
-	}
-
-	result, err = Decode(bytes.NewBuffer([]byte(armorMoreZeroWidths)))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = ioutil.ReadAll(result.Body)
-	if err != nil {
-		t.Fatalf("Error after ReadAll: %+v", err)
-	}
-
+	result := decodeAndRead(t, armorMoreZeroWidths)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
 		t.Error("Expected CRC to be read")
@@ -98,22 +98,18 @@ func TestZeroWidthSpace(t *testing.T) {
 }
 
 func TestNoNewlines(t *testing.T) {
-	result, err := Decode(bytes.NewBuffer([]byte(armorNoNewlines)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	decodeAndRead(t, armorNoNewlines)
+	decodeAndRead(t, armorNoNewlines2)
+	decodeAndRead(t, wtfKey)
+}
 
-	if _, err = ioutil.ReadAll(result.Body); err != nil {
-		t.Fatalf("Error after ReadAll: %+v", err)
-	}
+func TestFoldedCRC(t *testing.T) {
+	t.Skip("Not sure how to handle this one")
 
-	result, err = Decode(bytes.NewBuffer([]byte(armorNoNewlines2)))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err = ioutil.ReadAll(result.Body); err != nil {
-		t.Fatalf("Error after ReadAll: %+v", err)
+	result := decodeAndRead(t, armorNoNewlinesBrokenCRC)
+	if result.lReader.crc == nil {
+		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
+		t.Error("Expected CRC to be read")
 	}
 }
 
@@ -182,5 +178,17 @@ iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
 `p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
 TxRjs+fJCIFuo71xb1g=
 =/teI
+-----END PGP SIGNATURE-----
+`
+
+// The last line ("=/teI") is folded into rest of the armor, meaning
+// the crc sum will not be found and checked.
+const armorNoNewlinesBrokenCRC = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
+`4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt     ` +
+`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
+TxRjs+fJCIFuo71xb1g==/teI
 -----END PGP SIGNATURE-----
 `
