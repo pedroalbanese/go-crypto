@@ -94,12 +94,8 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		return
 	}
 
-	line = bytes.Map(func(r rune) rune {
-		if ourIsSpace(r) {
-			return -1
-		}
-		return r
-	}, line)
+	// Entry-level cleanup, just trim spaces.
+	line = bytes.TrimFunc(line, ourIsSpace)
 
 	if len(line) == 5 && line[0] == '=' {
 		// This is the checksum line
@@ -137,6 +133,16 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		l.crc = nil
 		return 0, io.EOF
 	}
+
+	// Clean-up line from whitespace to pass it further (to base64
+	// decoder). This is done after test for CRC and test for
+	// armorEnd. So keys that have whitespace in CRC
+	line = bytes.Map(func(r rune) rune {
+		if ourIsSpace(r) {
+			return -1
+		}
+		return r
+	}, line)
 
 	n = copy(p, line)
 	bytesToSave := len(line) - n

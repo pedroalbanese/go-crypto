@@ -100,15 +100,24 @@ func TestZeroWidthSpace(t *testing.T) {
 func TestNoNewlines(t *testing.T) {
 	decodeAndRead(t, armorNoNewlines)
 	decodeAndRead(t, armorNoNewlines2)
-	decodeAndRead(t, wtfKey)
 }
 
 func TestFoldedCRC(t *testing.T) {
+	// KBPGP does not fail to read here, but it doesn't discover CRC
+	// (discards the folded in CRC as garbage), and it's probably the
+	// right behavior to aim for here.
 	t.Skip("Not sure how to handle this one")
 
 	result := decodeAndRead(t, armorNoNewlinesBrokenCRC)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
+		t.Error("Expected CRC to be read")
+	}
+}
+
+func TestWhitespaceInCRC(t *testing.T) {
+	result := decodeAndRead(t, armorWhitespaceInCRC)
+	if result.lReader.crc == nil {
 		t.Error("Expected CRC to be read")
 	}
 }
@@ -190,5 +199,16 @@ iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
 `4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt     ` +
 `p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
 TxRjs+fJCIFuo71xb1g==/teI
+-----END PGP SIGNATURE-----
+`
+
+const armorWhitespaceInCRC = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
+`4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt     ` +
+`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
+TxRjs+fJCIFuo71xb1g=
+=/teI` + "\u200b " + `
 -----END PGP SIGNATURE-----
 `
