@@ -136,7 +136,9 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 
 	// Clean-up line from whitespace to pass it further (to base64
 	// decoder). This is done after test for CRC and test for
-	// armorEnd. So keys that have whitespace in CRC
+	// armorEnd. Keys that have whitespace in CRC will have CRC
+	// treated as part of the payload and probably fail in base64
+	// reading.
 	line = bytes.Map(func(r rune) rune {
 		if ourIsSpace(r) {
 			return -1
