@@ -1,91 +1,91 @@
 package openpgp
 
 import (
-    "bytes"
-    "io/ioutil"
-    "strings"
-    "testing"
-    "fmt"
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"strings"
+	"testing"
 
-    "github.com/keybase/go-crypto/openpgp/armor"
+	"github.com/keybase/go-crypto/openpgp/armor"
 )
 
 func TestMultisig(t *testing.T) {
-    kring1, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey1))
-    if err != nil {
-        t.Error(err)
-        return
-    }
+	kring1, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey1))
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-    kring2, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey2))
-    if err != nil {
-        t.Error(err)
-        return
-    }
+	kring2, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey2))
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-    if len(kring1) != 1 && len(kring2) != 1 {
-        t.Fatalf("Expected both keyrings to only have one key each: len 1: %d len 2: %d", len(kring1), len(kring2))
-    }
+	if len(kring1) != 1 && len(kring2) != 1 {
+		t.Fatalf("Expected both keyrings to only have one key each: len 1: %d len 2: %d", len(kring1), len(kring2))
+	}
 
-    tryWithKey := func (keys EntityList) error {
-        sig, err := armor.Decode(strings.NewReader(testSignature))
-        if err != nil {
-            return err
-        }
+	tryWithKey := func(keys EntityList) error {
+		sig, err := armor.Decode(strings.NewReader(testSignature))
+		if err != nil {
+			return err
+		}
 
-        md, err := ReadMessage(sig.Body, keys, nil, nil)
-        if err != nil {
-            return err
-        }
+		md, err := ReadMessage(sig.Body, keys, nil, nil)
+		if err != nil {
+			return err
+		}
 
-        if !md.MultiSig {
-            return fmt.Errorf("Expected MultiSig to be true")
-        }
+		if !md.MultiSig {
+			return fmt.Errorf("Expected MultiSig to be true")
+		}
 
-        if md.SignedBy == nil {
-            return fmt.Errorf("Message wasn't signed (md is %+v)", md)
-        }
+		if md.SignedBy == nil {
+			return fmt.Errorf("Message wasn't signed (md is %+v)", md)
+		}
 
-        if md.SignedBy.PublicKey != keys[0].PrimaryKey {
-            return fmt.Errorf("Message wasn't by expected key (SignedBy is %p)", md.SignedBy)
-        }
+		if md.SignedBy.PublicKey != keys[0].PrimaryKey {
+			return fmt.Errorf("Message wasn't by expected key (SignedBy is %p)", md.SignedBy)
+		}
 
-        _, err = ioutil.ReadAll(md.UnverifiedBody)
-        if err != nil {
-            return err
-        }
+		_, err = ioutil.ReadAll(md.UnverifiedBody)
+		if err != nil {
+			return err
+		}
 
-        if md.SignatureError != nil {
-            return fmt.Errorf("md.SignatureError: %s", md.SignatureError)
-        }
+		if md.SignatureError != nil {
+			return fmt.Errorf("md.SignatureError: %s", md.SignatureError)
+		}
 
-        if md.Signature == nil && md.SignatureV3 == nil {
-            return fmt.Errorf("Signature is nil after reading (md is %+v)", md)
-        }
+		if md.Signature == nil && md.SignatureV3 == nil {
+			return fmt.Errorf("Signature is nil after reading (md is %+v)", md)
+		}
 
-        return nil
-    }
+		return nil
+	}
 
-    badkey, err := ReadArmoredKeyRing(bytes.NewBufferString(matthiasuKey))
-    if err != nil {
-        t.Error(err)
-        return
-    }
+	badkey, err := ReadArmoredKeyRing(bytes.NewBufferString(matthiasuKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-    t.Logf("Trying keyring 1")
-    if err := tryWithKey(kring1); err != nil {
-        t.Error(err)
-    }
+	t.Logf("Trying keyring 1")
+	if err := tryWithKey(kring1); err != nil {
+		t.Error(err)
+	}
 
-    t.Logf("Trying keyring 2")
-    if err := tryWithKey(kring2); err != nil {
-        t.Error(err)
-    }
+	t.Logf("Trying keyring 2")
+	if err := tryWithKey(kring2); err != nil {
+		t.Error(err)
+	}
 
-    t.Logf("Trying entirely unrelated key from different test file")
-    if err := tryWithKey(badkey); err == nil {
-        t.Error("Expected an error but got nil when trying unrelated key.")
-    }
+	t.Logf("Trying entirely unrelated key from different test file")
+	if err := tryWithKey(badkey); err == nil {
+		t.Error("Expected an error but got nil when trying unrelated key.")
+	}
 }
 
 const testKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
