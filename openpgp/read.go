@@ -248,11 +248,14 @@ FindLiteralData:
 			}
 		case *packet.OnePassSignature:
 			if md.IsSigned {
+				// If IsSigned is set, it means we have multiple
+				// OnePassSignature packets.
 				md.MultiSig = true
 				if md.SignedBy != nil {
-					// Consumer is going to check message validity against
-					// specific key, continue with that key instead of trying
-					// to find one for another sig.
+					// We've already found the signature we were looking
+					// for, made by key that we had in keyring and can
+					// check signature against. Continue with that instead
+					// of trying to find another.
 					continue FindLiteralData
 				}
 			}
