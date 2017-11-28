@@ -42,6 +42,14 @@ func TestMultisig(t *testing.T) {
             return fmt.Errorf("Expected MultiSig to be true")
         }
 
+        if md.SignedBy == nil {
+            return fmt.Errorf("Message wasn't signed (md is %+v)", md)
+        }
+
+        if md.SignedBy.PublicKey != keys[0].PrimaryKey {
+            return fmt.Errorf("Message wasn't by expected key (SignedBy is %p)", md.SignedBy)
+        }
+
         _, err = ioutil.ReadAll(md.UnverifiedBody)
         if err != nil {
             return err
@@ -51,12 +59,8 @@ func TestMultisig(t *testing.T) {
             return fmt.Errorf("md.SignatureError: %s", md.SignatureError)
         }
 
-        if md.SignedBy == nil || (md.Signature == nil && md.SignatureV3 == nil) {
-            return fmt.Errorf("Message wasn't signed (md is %+v)", md)
-        }
-
-        if md.SignedBy.PublicKey != keys[0].PrimaryKey {
-            return fmt.Errorf("Message wasn't by expected key (SignedBy is %p)", md.SignedBy)
+        if md.Signature == nil && md.SignatureV3 == nil {
+            return fmt.Errorf("Signature is nil after reading (md is %+v)", md)
         }
 
         return nil
