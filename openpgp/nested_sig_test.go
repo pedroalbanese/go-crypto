@@ -89,36 +89,36 @@ func TestMultisig(t *testing.T) {
 }
 
 func TestMultisigMalformed(t *testing.T) {
-    keys, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey2))
-    if err != nil {
-        t.Fatal(err)
-        return
-    }
+	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey2))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 
-    sig, err := armor.Decode(strings.NewReader(testSignatureMalformed))
-    if err != nil {
-        t.Fatalf("Got error during decode: %v", err)
-    }
+	sig, err := armor.Decode(strings.NewReader(testSignatureMalformed))
+	if err != nil {
+		t.Fatalf("Got error during decode: %v", err)
+	}
 
-    md, err := ReadMessage(sig.Body, keys, nil, nil)
-    if err != nil {
-        t.Fatalf("Got error during ReadMessage: %v", err)
-    }
+	md, err := ReadMessage(sig.Body, keys, nil, nil)
+	if err != nil {
+		t.Fatalf("Got error during ReadMessage: %v", err)
+	}
 
-    if !md.MultiSig {
-        t.Fatal("Expected MultiSig to be true")
-    }
+	if !md.MultiSig {
+		t.Fatal("Expected MultiSig to be true")
+	}
 
-    _, err = ioutil.ReadAll(md.UnverifiedBody)
-    if err != nil {
-        t.Fatalf("Got error during ReadAll: %v", err)
-    }
+	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Fatalf("Got error during ReadAll: %v", err)
+	}
 
-    if md.SignatureError == nil || md.Signature != nil {
-        t.Fatalf("Expected SignatureError, got nil")
-    }
+	if md.SignatureError == nil || md.Signature != nil {
+		t.Fatalf("Expected SignatureError, got nil")
+	}
 
-    t.Logf("SignatureError is: %v", md.SignatureError)
+	t.Logf("SignatureError is: %v", md.SignatureError)
 }
 
 const testKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
