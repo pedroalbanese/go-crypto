@@ -345,6 +345,13 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 			var p packet.Packet
 			p, scr.md.SignatureError = scr.packets.Next()
 			if scr.md.SignatureError != nil {
+				if scr.md.MultiSig {
+					// If we are in MultiSig, we might have found other
+					// signature that cannot be verified using our key.
+					// Clear Signature field so it's clear for consumers
+					// that this message failed to verify.
+					scr.md.Signature = nil
+				}
 				return
 			}
 

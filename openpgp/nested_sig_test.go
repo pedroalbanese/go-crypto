@@ -88,6 +88,39 @@ func TestMultisig(t *testing.T) {
 	}
 }
 
+func TestMultisigMalformed(t *testing.T) {
+    keys, err := ReadArmoredKeyRing(bytes.NewBufferString(testKey2))
+    if err != nil {
+        t.Fatal(err)
+        return
+    }
+
+    sig, err := armor.Decode(strings.NewReader(testSignatureMalformed))
+    if err != nil {
+        t.Fatalf("Got error during decode: %v", err)
+    }
+
+    md, err := ReadMessage(sig.Body, keys, nil, nil)
+    if err != nil {
+        t.Fatalf("Got error during ReadMessage: %v", err)
+    }
+
+    if !md.MultiSig {
+        t.Fatal("Expected MultiSig to be true")
+    }
+
+    _, err = ioutil.ReadAll(md.UnverifiedBody)
+    if err != nil {
+        t.Fatalf("Got error during ReadAll: %v", err)
+    }
+
+    if md.SignatureError == nil || md.Signature != nil {
+        t.Fatalf("Expected SignatureError, got nil")
+    }
+
+    t.Logf("SignatureError is: %v", md.SignatureError)
+}
+
 const testKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEWfcV/BYJKwYBBAHaRw8BAQdAYhAuI4LPgxnu8MDU/XJpSlfCFPelz58v5QpU
@@ -125,4 +158,18 @@ xI4vmaJe3MJav1zjZZc67ZSJYVy9+Q33resy8X0M/4Mmhrs7zvyssnTjiTOTPzus
 uXp/8adNSepq6kncd9iiU5kB
 =QVa3
 -----END PGP MESSAGE-----
+`
+
+// This signature payload ends prematurely, it claims to be signed by
+// both testKey1 (9CF6031C62ACE139) and testKey2 (881C7BA4C7FD586C)
+// but it only contains `signature packet` for 9CF6031C62ACE139. If we
+// test it with 881C7BA4C7FD586C, it should fail to read.
+const testSignatureMalformed = `-----BEGIN PGP MESSAGE-----
+
+kA0DAAgWiBx7pMf9WGwAkA0DAAgWnPYDHGKs4TkByxZiAFn3NTt4eHh4eHh4eHh4
+eHh4eHgKiF4EABYIAAYFAln3NTsACgkQnPYDHGKs4Tl6BwEAocCylR5+uv3nA8kg
+RAy7z9VjXu4VuMir91ZB5tztHzIBANAsEkgYnl94kQ+3c9OokWl2i44XzcMmsFYc
+fyM/ghcK
+=R0Rj
+-----END PGP ARMORED FILE-----
 `
