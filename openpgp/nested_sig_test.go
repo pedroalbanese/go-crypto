@@ -42,8 +42,12 @@ func TestMultisig(t *testing.T) {
 			return fmt.Errorf("Expected MultiSig to be true")
 		}
 
+		if md.SignedByKeyId == 0 {
+			return fmt.Errorf("SignedByKeyId should never be zero, even if keyring doesn't contain good key")
+		}
+
 		if md.SignedBy == nil {
-			return fmt.Errorf("Message wasn't signed (md is %+v)", md)
+			return fmt.Errorf("Couldn't find key message was signed with or message wasn't signed (md is %+v)", md)
 		}
 
 		if md.SignedBy.PublicKey != keys[0].PrimaryKey {
@@ -83,9 +87,11 @@ func TestMultisig(t *testing.T) {
 	}
 
 	t.Logf("Trying entirely unrelated key from different test file")
-	if err := tryWithKey(badkey); err == nil {
+	err = tryWithKey(badkey)
+	if err == nil {
 		t.Error("Expected an error but got nil when trying unrelated key.")
 	}
+	t.Logf("When trying with bad key, error was: %s", err)
 }
 
 func TestMultisigMalformed(t *testing.T) {
