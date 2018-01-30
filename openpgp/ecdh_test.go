@@ -233,9 +233,9 @@ func TestInvalidEddsaSignatureImport(t *testing.T) {
 }
 
 func TestECDHBitLengths(t *testing.T) {
-	readAndGetBitLength := func(armored string) (uint16) {
+	readAndGetBitLength := func(armored string) uint16 {
 		entities, err := ReadArmoredKeyRing(strings.NewReader(armored))
-		if err  != nil {
+		if err != nil {
 			t.Fatalf("Error in ReadArmoredKeyRing: %v", err)
 		}
 		bitLen, err := entities[0].PrimaryKey.BitLength()
