@@ -114,7 +114,8 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 			line, _, err = l.in.ReadLine()
 			if err == io.EOF {
 				break
-			} else if err != nil {
+			}
+			if err != nil {
 				return
 			}
 			if len(strings.TrimSpace(string(line))) > 0 {
