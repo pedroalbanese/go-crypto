@@ -2,14 +2,13 @@ package openpgp
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"strings"
 	"testing"
 	"time"
 
-	goerrors "errors"
-
-	"github.com/keybase/go-crypto/openpgp/errors"
+	pgpErrors "github.com/keybase/go-crypto/openpgp/errors"
 	"github.com/keybase/go-crypto/openpgp/packet"
 	"golang.org/x/crypto/openpgp/armor"
 )
@@ -69,7 +68,7 @@ func TestMissingCrossSignature(t *testing.T) {
 	if err == nil {
 		t.Fatal("Failed to detect error in keyring with missing cross signature")
 	}
-	structural, ok := err.(errors.StructuralError)
+	structural, ok := err.(pgpErrors.StructuralError)
 	if !ok {
 		t.Fatalf("Unexpected class of error: %T. Wanted StructuralError", err)
 	}
@@ -102,7 +101,7 @@ func TestInvalidCrossSignature(t *testing.T) {
 	if err == nil {
 		t.Fatal("Failed to detect error in keyring with an invalid cross signature")
 	}
-	structural, ok := err.(errors.StructuralError)
+	structural, ok := err.(pgpErrors.StructuralError)
 	if !ok {
 		t.Fatalf("Unexpected class of error: %T. Wanted StructuralError", err)
 	}
@@ -329,7 +328,7 @@ func TestWithBadSubkeySignaturePackets(t *testing.T) {
 
 func TestKeyWithoutUID(t *testing.T) {
 	_, err := ReadArmoredKeyRing(strings.NewReader(noUIDkey))
-	if se, ok := err.(errors.StructuralError); !ok {
+	if se, ok := err.(pgpErrors.StructuralError); !ok {
 		t.Fatal("expected a structural error")
 	} else if strings.Index(se.Error(), "entity without any identities") < 0 {
 		t.Fatal("Got wrong error: %s", se.Error())
@@ -377,7 +376,7 @@ type timeoutReader struct {
 	t time.Time
 }
 
-var errTimeout = goerrors.New("timeout")
+var errTimeout = errors.New("timeout")
 
 func (tr timeoutReader) Read(p []byte) (n int, err error) {
 	if time.Now().After(tr.t) {
