@@ -176,7 +176,7 @@ func TestNewEntity(t *testing.T) {
 		t.Errorf("failed to find bit length: %s", err)
 	}
 	if int(bl) != defaultRSAKeyBits {
-		t.Errorf("BitLength %v, expected %v", defaultRSAKeyBits)
+		t.Errorf("BitLength %v, expected %v", bl, defaultRSAKeyBits)
 	}
 
 	// Check bit-length with a config.
@@ -334,7 +334,7 @@ func TestEncryption(t *testing.T) {
 			signKey, _ := kring[0].signingKey(testTime)
 			expectedKeyId := signKey.PublicKey.KeyId
 			if md.SignedByKeyId != expectedKeyId {
-				t.Errorf("#%d: message signed by wrong key id, got: %d, want: %d", i, *md.SignedBy, expectedKeyId)
+				t.Errorf("#%d: message signed by wrong key id, got: %d, want: %d", i, md.SignedByKeyId, expectedKeyId)
 			}
 			if md.SignedBy == nil {
 				t.Errorf("#%d: failed to find the signing Entity", i)

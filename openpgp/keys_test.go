@@ -55,7 +55,7 @@ func TestMissingCrossSignature(t *testing.T) {
 		t.Errorf("Should have gotten 1 key; got %d", len(keys))
 	}
 	if err != nil {
-		t.Errorf("Should not have failed, but got: %v\n")
+		t.Errorf("Should not have failed, but got: %v\n", err)
 	}
 
 	key := keys[0]
@@ -88,7 +88,7 @@ func TestInvalidCrossSignature(t *testing.T) {
 		t.Errorf("Should have gotten 1 key; got %d", len(keys))
 	}
 	if err != nil {
-		t.Errorf("Should not have failed, but got: %v\n")
+		t.Errorf("Should not have failed, but got: %v\n", err)
 	}
 
 	key := keys[0]
@@ -331,7 +331,7 @@ func TestKeyWithoutUID(t *testing.T) {
 	if se, ok := err.(pgpErrors.StructuralError); !ok {
 		t.Fatal("expected a structural error")
 	} else if strings.Index(se.Error(), "entity without any identities") < 0 {
-		t.Fatal("Got wrong error: %s", se.Error())
+		t.Fatalf("Got wrong error: %s", se.Error())
 	}
 }
 
