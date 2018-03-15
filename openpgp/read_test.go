@@ -494,7 +494,7 @@ func TestGNUS2KDummySigningSubkey(t *testing.T) {
 	key := testSerializePrivate(t, gnuDummyS2KPrivateKeyWithSigningSubkey, gnuDummyS2KPrivateKeyWithSigningSubkeyPassphrase, 2)
 	_, err := trySigning(key)
 	if err != nil {
-		t.Fatal("Got a signing failure: %s\n", err)
+		t.Fatalf("Got a signing failure: %v\n", err)
 	}
 }
 
