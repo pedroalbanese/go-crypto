@@ -3,8 +3,8 @@ package openpgp
 import (
 	"bytes"
 	"crypto"
-	"crypto/elliptic"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"io"
 	"io/ioutil"
@@ -14,8 +14,8 @@ import (
 
 	"github.com/keybase/go-crypto/brainpool"
 	"github.com/keybase/go-crypto/curve25519"
-	"github.com/keybase/go-crypto/openpgp/ecdh"
 	"github.com/keybase/go-crypto/openpgp/armor"
+	"github.com/keybase/go-crypto/openpgp/ecdh"
 	"github.com/keybase/go-crypto/openpgp/packet"
 )
 
@@ -117,7 +117,9 @@ func TestECDHDecryption(t *testing.T) {
 }
 
 func ecdhEncryptionRoundtrip(t *testing.T, privKey string, pubKey string) {
-	entities, err := ReadArmoredKeyRing(strings.NewReader(privKey))
+	// Encryption
+	// ----------
+	entities, err := ReadArmoredKeyRing(strings.NewReader(pubKey))
 	if err != nil {
 		t.Fatalf("error opening keys: %v", err)
 	}
@@ -137,6 +139,16 @@ func ecdhEncryptionRoundtrip(t *testing.T, privKey string, pubKey string) {
 	io.Copy(writer, bytes.NewBufferString(msgstr))
 	writer.Close()
 	armored.Close()
+
+	// Decryption
+	// ----------
+	entities, err = ReadArmoredKeyRing(strings.NewReader(privKey))
+	if err != nil {
+		t.Fatalf("error opening keys: %v", err)
+	}
+	if len(entities) != 1 {
+		t.Fatal("expected only 1 key")
+	}
 
 	block, err := armor.Decode(bytes.NewBuffer(buf.Bytes()))
 	md, err := ReadMessage(block.Body, entities, nil, nil)
@@ -355,12 +367,25 @@ func eccKeyGenRoundtrip(t *testing.T, curve elliptic.Curve) {
 }
 
 func TestECCKeyGeneration(t *testing.T) {
-	for _, curve := range []elliptic.Curve {
-		curve25519.Cv25519(), 
+	for _, curve := range []elliptic.Curve{
+		curve25519.Cv25519(),
 		elliptic.P521(), elliptic.P384(), elliptic.P256(),
 		brainpool.P256r1(), brainpool.P384r1(), brainpool.P512r1(),
 	} {
 		eccKeyGenRoundtrip(t, curve)
+	}
+}
+
+func TestECDHBadSharedKey(t *testing.T) {
+	entities, err := ReadArmoredKeyRing(strings.NewReader(privKeyCv25519))
+	if err != nil {
+		t.Fatalf("error opening keys: %v", err)
+	}
+	block, err := armor.Decode(strings.NewReader(payloadCv25519BadKey))
+	_, err = ReadMessage(block.Body, entities, nil, nil)
+	if err == nil {
+		// Expect an error, but not panic.
+		t.Fatal("Expected read to fail")
 	}
 }
 
@@ -567,6 +592,20 @@ XUNWZ/WrMOJHerpQvMvPNjEwMSGnsIZPh8/Hafj7j8OauMG5EWgCrzsxv1mgsRXP
 QkNog/5dM9JIAcT8RpDaFecdhRag6ZPuRKmNuhiFtR7o0spcqX2UkJ3FPB7UydX3
 ch9PkTNL1BVD++JqYQE9eaIqlCTAsHwCgO6pQkQqPUvB
 =y7cW
+-----END PGP MESSAGE-----
+
+`
+
+// This message is encrypted against cv25519 public key, but the X of
+// shared public key point is truncated by 1 byte. This used to panic
+// in curve25519 package.
+const payloadCv25519BadKey = `-----BEGIN PGP MESSAGE-----
+
+wU4DR1BH23/8iIwSAQdAAMZtmqYOggdGAIZiiDAEZ6A2HBBeC0T5QJeZyjH3GQsg
+n7sPof7QULJ/Fty3BpvXAWkK/S5AOjfjMTUcbeLHaJrS4AHkBHYdpJUSIy/4JSkE
+RQX1BOGpL+CO4EDhFi7gX+IBho2T4DHlL71ZaRBM8SCnxVt2OisXabbEKiI+6jdv
+PQTqtFy9X7/g5+N1jJ4VJlOmKeAN5KKO0UHANZoGGZr3etDvZsbicxMuXOFBrwA=
+=uD58
 -----END PGP MESSAGE-----
 
 `
