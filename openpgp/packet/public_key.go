@@ -10,7 +10,6 @@ import (
 	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rsa"
 	"crypto/sha1"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
@@ -28,6 +27,7 @@ import (
 	"github.com/keybase/go-crypto/openpgp/ecdh"
 	"github.com/keybase/go-crypto/openpgp/elgamal"
 	"github.com/keybase/go-crypto/openpgp/errors"
+	"github.com/keybase/go-crypto/rsa"
 	"github.com/keybase/go-crypto/openpgp/s2k"
 )
 
@@ -484,7 +484,7 @@ func (pk *PublicKey) parseRSA(r io.Reader) (err error) {
 	}
 	for i := 0; i < len(pk.e.bytes); i++ {
 		rsa.E <<= 8
-		rsa.E |= int(pk.e.bytes[i])
+		rsa.E |= int64(pk.e.bytes[i])
 	}
 	pk.PublicKey = rsa
 	return
