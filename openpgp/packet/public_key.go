@@ -14,6 +14,7 @@ import (
 	_ "crypto/sha256"
 	_ "crypto/sha512"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"hash"
 	"io"
@@ -482,6 +483,8 @@ func (pk *PublicKey) parseRSA(r io.Reader) (err error) {
 		N: new(big.Int).SetBytes(pk.n.bytes),
 		E: 0,
 	}
+	// Warning: incompatibility with crypto/rsa: keybase fork uses
+	// int64 public exponents instead of int32.
 	for i := 0; i < len(pk.e.bytes); i++ {
 		rsa.E <<= 8
 		rsa.E |= int64(pk.e.bytes[i])
