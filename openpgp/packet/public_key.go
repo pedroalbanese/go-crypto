@@ -14,7 +14,6 @@ import (
 	_ "crypto/sha256"
 	_ "crypto/sha512"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"hash"
 	"io"
@@ -28,8 +27,8 @@ import (
 	"github.com/keybase/go-crypto/openpgp/ecdh"
 	"github.com/keybase/go-crypto/openpgp/elgamal"
 	"github.com/keybase/go-crypto/openpgp/errors"
-	"github.com/keybase/go-crypto/rsa"
 	"github.com/keybase/go-crypto/openpgp/s2k"
+	"github.com/keybase/go-crypto/rsa"
 )
 
 var (
