@@ -74,19 +74,19 @@ func TestLongHeader(t *testing.T) {
 	}
 }
 
-func decodeAndReadAll(t *testing.T, armor string) *Block {
+func decodeAndReadAll(t *testing.T, armor string) (*Block, string) {
 	result, err := Decode(bytes.NewBuffer([]byte(armor)))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = ioutil.ReadAll(result.Body)
+	dataStr, err := ioutil.ReadAll(result.Body)
 	if err != nil {
 		fmt.Printf("Failing payload is:\n\n%s\n", armor)
 		t.Errorf("Error after ReadAll: %+v", err)
 	}
 
-	return result
+	return result, string(dataStr)
 }
 
 func decodeAndReadShortReads(t *testing.T, armor string) (ret string) {
@@ -113,8 +113,11 @@ func decodeAndReadShortReads(t *testing.T, armor string) (ret string) {
 }
 
 func decodeAndRead(t *testing.T, armor string) {
-	decodeAndReadAll(t, armor)
-	decodeAndReadShortReads(t, armor)
+	_, ret1 := decodeAndReadAll(t, armor)
+	ret2 := decodeAndReadShortReads(t, armor)
+	if ret1 != ret2 {
+		t.Errorf("ReadAll and short reads didn't agree: %q != %q", ret1, ret2)
+	}
 }
 
 func decodeAndReadFail(t *testing.T, expectedErr string, armor string) *Block {
@@ -139,7 +142,7 @@ func decodeAndReadFail(t *testing.T, expectedErr string, armor string) *Block {
 func TestZeroWidthSpace(t *testing.T) {
 	decodeAndRead(t, armorZeroWidthSpace)
 
-	result := decodeAndReadAll(t, armorMoreZeroWidths)
+	result, _ := decodeAndReadAll(t, armorMoreZeroWidths)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
 		t.Error("Expected CRC to be read")
@@ -157,7 +160,7 @@ func TestFoldedCRC(t *testing.T) {
 	// right behavior to aim for here.
 
 	fmt.Printf("%q\n", armorNoNewlinesBrokenCRC)
-	result := decodeAndReadAll(t, armorNoNewlinesBrokenCRC)
+	result, _ := decodeAndReadAll(t, armorNoNewlinesBrokenCRC)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
 		t.Error("Expected CRC to be read")
@@ -167,7 +170,7 @@ func TestFoldedCRC(t *testing.T) {
 }
 
 func TestWhitespaceInCRC(t *testing.T) {
-	result := decodeAndReadAll(t, armorWhitespaceInCRC)
+	result, _ := decodeAndReadAll(t, armorWhitespaceInCRC)
 	if result.lReader.crc == nil {
 		t.Error("Expected CRC to be read")
 	}
@@ -179,10 +182,13 @@ func TestEmptyLinesAfterCRC(t *testing.T) {
 }
 
 func TestEntirePayloadIsOneLineWithCRC(t *testing.T) {
-	decodeAndReadAll(t, everythingIsOneLineIncludingCRC)
-	ret := decodeAndReadShortReads(t, everythingIsOneLineIncludingCRC)
-	if ret != "asdasdasasasd" {
+	_, ret1 := decodeAndReadAll(t, everythingIsOneLineIncludingCRC)
+	if ret1 != "hello world 1\n" {
 		t.Error("Invalid data returned when dearmoring")
+	}
+	ret2 := decodeAndReadShortReads(t, everythingIsOneLineIncludingCRC)
+	if ret1 != ret2 {
+		t.Error("short reads did not match what ReadAll returned")
 	}
 }
 
@@ -345,7 +351,7 @@ TxRjs+fJCIFuo71xb1g==/teI
 const everythingIsOneLineIncludingCRC = `-----BEGIN PGP ARMORED FILE-----
 Comment: Use "gpg --dearmor" for unpacking
 
-YXNkYXNkYXNhc2FzZAo==keVS
+aGVsbG8gd29ybGQgMQo==hvYi
 -----END PGP ARMORED FILE-----
 `
 
