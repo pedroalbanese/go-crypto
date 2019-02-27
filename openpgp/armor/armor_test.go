@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"hash/adler32"
 	"io/ioutil"
+	"strings"
 	"testing"
 
 	"fmt"
@@ -81,7 +82,26 @@ func decodeAndRead(t *testing.T, armor string) *Block {
 	_, err = ioutil.ReadAll(result.Body)
 	if err != nil {
 		fmt.Printf("Failing payload is:\n\n%s\n", armor)
-		t.Fatalf("Error after ReadAll: %+v", err)
+		t.Errorf("Error after ReadAll: %+v", err)
+	}
+
+	return result
+}
+
+func decodeAndReadFail(t *testing.T, expectedErr string, armor string) *Block {
+	result, err := Decode(bytes.NewBuffer([]byte(armor)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ioutil.ReadAll(result.Body)
+	if err == nil {
+		fmt.Printf("Expecting payload to fail:\n\n%s\n", armor)
+		t.Errorf("Expected an error after ReadAll")
+	} else {
+		if !strings.Contains(err.Error(), expectedErr) {
+			t.Errorf("Expected error to contain %q, but it's: %v", expectedErr, err)
+		}
 	}
 
 	return result
@@ -106,13 +126,15 @@ func TestFoldedCRC(t *testing.T) {
 	// KBPGP does not fail to read here, but it doesn't discover CRC
 	// (discards the folded in CRC as garbage), and it's probably the
 	// right behavior to aim for here.
-	t.Skip("Not sure how to handle this one")
 
+	fmt.Printf("%q\n", armorNoNewlinesBrokenCRC)
 	result := decodeAndRead(t, armorNoNewlinesBrokenCRC)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
 		t.Error("Expected CRC to be read")
 	}
+
+	decodeAndRead(t, foldedCRC2)
 }
 
 func TestWhitespaceInCRC(t *testing.T) {
@@ -120,6 +142,24 @@ func TestWhitespaceInCRC(t *testing.T) {
 	if result.lReader.crc == nil {
 		t.Error("Expected CRC to be read")
 	}
+}
+
+func TestEmptyLinesAfterCRC(t *testing.T) {
+	decodeAndRead(t, emptyLinesAfterCRC1)
+	decodeAndRead(t, emptyLinesAfterCRC2)
+}
+
+func TestNoArmorEnd(t *testing.T) {
+	removeArmorEnd := func(str string) string {
+		return strings.Replace(str, "-----END PGP SIGNATURE-----", "", 1)
+	}
+	expectedErr := "invalid data: armor invalid"
+
+	decodeAndReadFail(t, expectedErr, removeArmorEnd(armorExample1))
+	decodeAndReadFail(t, expectedErr, removeArmorEnd(armorNoNewlines))
+	decodeAndReadFail(t, expectedErr, removeArmorEnd(armorNoNewlines2))
+	decodeAndReadFail(t, expectedErr, removeArmorEnd(emptyLinesAfterCRC1))
+	decodeAndReadFail(t, expectedErr, removeArmorEnd(emptyLinesAfterCRC2))
 }
 
 const armorExample1 = `-----BEGIN PGP SIGNATURE-----
@@ -197,8 +237,8 @@ Version: GnuPG v1.4.10 (GNU/Linux)
 
 iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
 	`4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt     ` +
-	`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
-TxRjs+fJCIFuo71xb1g==/teI
+	`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` +
+	`TxRjs+fJCIFuo71xb1g==/teI
 -----END PGP SIGNATURE-----
 `
 
@@ -210,5 +250,44 @@ iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm ` + "\t" +
 	`p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW       ` + `
 TxRjs+fJCIFuo71xb1g=
 =/teI` + "\u200b " + `
+-----END PGP SIGNATURE-----
+`
+
+// Same as the key above but without shenanigans, just no newline
+// before CRC.
+const foldedCRC2 = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm
+4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
+p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
+TxRjs+fJCIFuo71xb1g==/teI
+-----END PGP SIGNATURE-----
+`
+
+const emptyLinesAfterCRC1 = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm
+4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
+p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
+TxRjs+fJCIFuo71xb1g=
+=/teI
+
+
+
+-----END PGP SIGNATURE-----
+`
+
+const emptyLinesAfterCRC2 = `-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm
+4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
+p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
+TxRjs+fJCIFuo71xb1g==/teI
+
+
+
 -----END PGP SIGNATURE-----
 `

@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"strings"
 	"unicode"
@@ -79,6 +80,7 @@ func ourIsSpace(r rune) bool {
 }
 
 func (l *lineReader) Read(p []byte) (n int, err error) {
+	defer func() { fmt.Printf("++ - LineRead: %d %q %v\n", n, p, err) }()
 	if l.eof {
 		return 0, io.EOF
 	}
@@ -94,23 +96,59 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		return
 	}
 
+	fmt.Printf("+- Got line: %q\n", line)
+
 	// Entry-level cleanup, just trim spaces.
 	line = bytes.TrimFunc(line, ourIsSpace)
 
-	if len(line) == 5 && line[0] == '=' {
-		// This is the checksum line
+	foldedChecksum := false
+	if len(line) >= 5 && line[len(line)-5] == '=' {
+		// This is the checksum line. Checksum should appear on separate line,
+		// but some key bundles don't have a newline between main payload and
+		// the checksum, and we try to support that.
+
+		// `=` is not a base64 character with the exception of padding, and the
+		// padding can only be 2 characters long ("=="), so we can safely
+		// assume that 5 characters starting with `=` at the end of the line
+		// can't be a valid ending of a base64 stream. In other words, `=` at
+		// position len-5 in base64 stream can never be a valid part of that
+		// stream.
+
+		if l.crc != nil {
+			// Error out early if there are multiple checksums.
+			return 0, ArmorCorrupt
+		}
+
+		fmt.Printf("^^ Found Checksum: %q\n", line[len(line)-5:])
+
 		var expectedBytes [3]byte
 		var m int
-		m, err = base64.StdEncoding.Decode(expectedBytes[0:], line[1:])
+		m, err = base64.StdEncoding.Decode(expectedBytes[0:], line[len(line)-4:])
 		if m != 3 || err != nil {
+			fmt.Printf("^^ m=%d err=%v", m, err)
 			return
 		}
 		crc := uint32(expectedBytes[0])<<16 |
 			uint32(expectedBytes[1])<<8 |
 			uint32(expectedBytes[2])
 		l.crc = &crc
+		line = line[:len(line)-5]
+		fmt.Printf("^^ Leftover after checksum: %q\n", line)
 
+		// If we have a checksum and there is still data, we
+		// don't want to go into "looking for armor end" loop.
+		foldedChecksum = len(line) > 0
+	}
+
+	expectArmorEnd := false
+	if l.crc != nil && !foldedChecksum {
+		// We have a checksum and we are now reading what's after. Skip
+		// all empty lines until we see something and we except it to be
+		// ArmorEnd at this point.
 		for {
+			if len(strings.TrimSpace(string(line))) > 0 {
+				break
+			}
 			line, _, err = l.in.ReadLine()
 			if err == io.EOF {
 				break
@@ -118,23 +156,17 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 			if err != nil {
 				return
 			}
-			if len(strings.TrimSpace(string(line))) > 0 {
-				break
-			}
 		}
-		if !bytes.HasPrefix(line, armorEnd) {
-			return 0, ArmorCorrupt
-		}
-
-		l.eof = true
-		return 0, io.EOF
+		expectArmorEnd = true
 	}
 
 	if bytes.HasPrefix(line, armorEnd) {
-		// Unexpected ending, there was no checksum.
+		fmt.Printf("++ GOT ARMOR END: %+v\n", l)
 		l.eof = true
-		l.crc = nil
 		return 0, io.EOF
+	} else if expectArmorEnd {
+		// We wanted armorEnd but didn't see one.
+		return 0, ArmorCorrupt
 	}
 
 	// Clean-up line from whitespace to pass it further (to base64
@@ -172,6 +204,8 @@ type openpgpReader struct {
 }
 
 func (r *openpgpReader) Read(p []byte) (n int, err error) {
+	defer func() { fmt.Printf(":: Read %d %d %q %v\n", n, len(p), p[:n], err) }()
+
 	n, err = r.b64Reader.Read(p)
 	r.currentCRC = crc24(r.currentCRC, p[:n])
 
