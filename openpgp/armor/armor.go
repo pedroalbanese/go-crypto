@@ -102,7 +102,7 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 	line = bytes.TrimFunc(line, ourIsSpace)
 
 	foldedChecksum := false
-	if len(line) >= 5 && line[len(line)-5] == '=' {
+	if len(line) >= 5 && line[len(line)-5] == '=' && line[len(line)-4] != '=' {
 		// This is the checksum line. Checksum should appear on separate line,
 		// but some key bundles don't have a newline between main payload and
 		// the checksum, and we try to support that.
