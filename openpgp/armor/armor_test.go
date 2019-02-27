@@ -7,6 +7,7 @@ package armor
 import (
 	"bytes"
 	"hash/adler32"
+	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -73,7 +74,7 @@ func TestLongHeader(t *testing.T) {
 	}
 }
 
-func decodeAndRead(t *testing.T, armor string) *Block {
+func decodeAndReadAll(t *testing.T, armor string) *Block {
 	result, err := Decode(bytes.NewBuffer([]byte(armor)))
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +87,34 @@ func decodeAndRead(t *testing.T, armor string) *Block {
 	}
 
 	return result
+}
+
+func decodeAndReadShortReads(t *testing.T, armor string) (ret string) {
+	result, err := Decode(bytes.NewBuffer([]byte(armor)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var p [10]byte
+	n := 1
+	for {
+		z, err := result.Body.Read(p[:n])
+		ret += string(p[:z])
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			t.Error(err)
+			break
+		}
+		n = (n + 1) % 5
+	}
+
+	return ret
+}
+
+func decodeAndRead(t *testing.T, armor string) {
+	decodeAndReadAll(t, armor)
+	decodeAndReadShortReads(t, armor)
 }
 
 func decodeAndReadFail(t *testing.T, expectedErr string, armor string) *Block {
@@ -110,7 +139,7 @@ func decodeAndReadFail(t *testing.T, expectedErr string, armor string) *Block {
 func TestZeroWidthSpace(t *testing.T) {
 	decodeAndRead(t, armorZeroWidthSpace)
 
-	result := decodeAndRead(t, armorMoreZeroWidths)
+	result := decodeAndReadAll(t, armorMoreZeroWidths)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
 		t.Error("Expected CRC to be read")
@@ -128,7 +157,7 @@ func TestFoldedCRC(t *testing.T) {
 	// right behavior to aim for here.
 
 	fmt.Printf("%q\n", armorNoNewlinesBrokenCRC)
-	result := decodeAndRead(t, armorNoNewlinesBrokenCRC)
+	result := decodeAndReadAll(t, armorNoNewlinesBrokenCRC)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
 		t.Error("Expected CRC to be read")
@@ -138,7 +167,7 @@ func TestFoldedCRC(t *testing.T) {
 }
 
 func TestWhitespaceInCRC(t *testing.T) {
-	result := decodeAndRead(t, armorWhitespaceInCRC)
+	result := decodeAndReadAll(t, armorWhitespaceInCRC)
 	if result.lReader.crc == nil {
 		t.Error("Expected CRC to be read")
 	}
@@ -149,17 +178,36 @@ func TestEmptyLinesAfterCRC(t *testing.T) {
 	decodeAndRead(t, emptyLinesAfterCRC2)
 }
 
+func TestEntirePayloadIsOneLineWithCRC(t *testing.T) {
+	decodeAndReadAll(t, everythingIsOneLineIncludingCRC)
+	ret := decodeAndReadShortReads(t, everythingIsOneLineIncludingCRC)
+	if ret != "asdasdasasasd" {
+		t.Error("Invalid data returned when dearmoring")
+	}
+}
+
+var armorErrorText = "invalid data: armor invalid"
+
 func TestNoArmorEnd(t *testing.T) {
 	removeArmorEnd := func(str string) string {
 		return strings.Replace(str, "-----END PGP SIGNATURE-----", "", 1)
 	}
-	expectedErr := "invalid data: armor invalid"
 
-	decodeAndReadFail(t, expectedErr, removeArmorEnd(armorExample1))
-	decodeAndReadFail(t, expectedErr, removeArmorEnd(armorNoNewlines))
-	decodeAndReadFail(t, expectedErr, removeArmorEnd(armorNoNewlines2))
-	decodeAndReadFail(t, expectedErr, removeArmorEnd(emptyLinesAfterCRC1))
-	decodeAndReadFail(t, expectedErr, removeArmorEnd(emptyLinesAfterCRC2))
+	decodeAndReadFail(t, armorErrorText, removeArmorEnd(armorExample1))
+	decodeAndReadFail(t, armorErrorText, removeArmorEnd(armorNoNewlines))
+	decodeAndReadFail(t, armorErrorText, removeArmorEnd(armorNoNewlines2))
+	decodeAndReadFail(t, armorErrorText, removeArmorEnd(emptyLinesAfterCRC1))
+	decodeAndReadFail(t, armorErrorText, removeArmorEnd(emptyLinesAfterCRC2))
+}
+
+func TestMalformedCRCs(t *testing.T) {
+	// Test CRC being in random places in payload trying to confuse our parser.
+	decodeAndReadFail(t, armorErrorText, confuseArmorAndCRC)
+	decodeAndReadFail(t, armorErrorText, testBadCRC)
+	decodeAndReadFail(t, armorErrorText, testMultipleCrcs)
+
+	decodeAndReadFail(t, "error decoding CRC: wrong size CRC", testNonDecodableCRC)
+	decodeAndReadFail(t, "error decoding CRC: illegal base64 data at input byte 1", testNonDecodableCRC2)
 }
 
 const armorExample1 = `-----BEGIN PGP SIGNATURE-----
@@ -290,4 +338,49 @@ TxRjs+fJCIFuo71xb1g==/teI
 
 
 -----END PGP SIGNATURE-----
+`
+
+// Really short base64 payload here so it's guaranteed not to be
+// buffered and returned as two lines by linereader.
+const everythingIsOneLineIncludingCRC = `-----BEGIN PGP ARMORED FILE-----
+Comment: Use "gpg --dearmor" for unpacking
+
+YXNkYXNkYXNhc2FzZAo==keVS
+-----END PGP ARMORED FILE-----
+`
+
+const confuseArmorAndCRC = `-----BEGIN PGP ARMORED FILE-----
+Comment: Use "gpg --dearmor" for unpacking
+
+SHVoIGhlbGxvIHdvcmxkCg==
+-----END PGP ARMORED FILE-----=n5G6
+`
+
+const testBadCRC = `-----BEGIN PGP ARMORED FILE-----
+Comment: Use "gpg --dearmor" for unpacking
+
+SHVoIGhlbGxvIHdvcmxkCg==
+=n5G5
+-----END PGP ARMORED FILE-----
+`
+
+const testMultipleCrcs = `-----BEGIN PGP ARMORED FILE-----
+
+SHVoIGhlbGxvIHdvcmxkCg===n5G6
+=n5G6
+-----END PGP ARMORED FILE-----
+`
+
+const testNonDecodableCRC = `-----BEGIN PGP ARMORED FILE-----
+
+SHVoIGhlbGxvIHdvcmxkCg==
+=n9==
+-----END PGP ARMORED FILE-----
+`
+
+const testNonDecodableCRC2 = `-----BEGIN PGP ARMORED FILE-----
+
+SHVoIGhlbGxvIHdvcmxkCg==
+=n%!@
+-----END PGP ARMORED FILE-----
 `

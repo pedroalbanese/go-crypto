@@ -80,7 +80,7 @@ func ourIsSpace(r rune) bool {
 }
 
 func (l *lineReader) Read(p []byte) (n int, err error) {
-	defer func() { fmt.Printf("++ - LineRead: %d %q %v\n", n, p, err) }()
+	defer func() { fmt.Printf("++ - LineRead: %d %q %v\n", n, p[:n], err) }()
 	if l.eof {
 		return 0, io.EOF
 	}
@@ -101,17 +101,18 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 	// Entry-level cleanup, just trim spaces.
 	line = bytes.TrimFunc(line, ourIsSpace)
 
+	lineWithChecksum := false
 	foldedChecksum := false
 	if len(line) >= 5 && line[len(line)-5] == '=' && line[len(line)-4] != '=' {
 		// This is the checksum line. Checksum should appear on separate line,
-		// but some key bundles don't have a newline between main payload and
-		// the checksum, and we try to support that.
+		// but some bundles don't have a newline between main payload and the
+		// checksum, and we try to support that.
 
 		// `=` is not a base64 character with the exception of padding, and the
-		// padding can only be 2 characters long ("=="), so we can safely
-		// assume that 5 characters starting with `=` at the end of the line
-		// can't be a valid ending of a base64 stream. In other words, `=` at
-		// position len-5 in base64 stream can never be a valid part of that
+		// padding can only be 2 characters long at most ("=="), so we can
+		// safely assume that 5 characters starting with `=` at the end of the
+		// line can't be a valid ending of a base64 stream. In other words, `=`
+		// at position len-5 in base64 stream can never be a valid part of that
 		// stream.
 
 		if l.crc != nil {
@@ -126,6 +127,13 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		m, err = base64.StdEncoding.Decode(expectedBytes[0:], line[len(line)-4:])
 		if m != 3 || err != nil {
 			fmt.Printf("^^ m=%d err=%v", m, err)
+			if err != nil {
+				// rewrite err
+				err = fmt.Errorf("error decoding CRC: %s", err.Error())
+			} else {
+				// or make one if we are here because b64 decoded to less than 3 bytes.
+				err = fmt.Errorf("error decoding CRC: wrong size CRC")
+			}
 			return
 		}
 		crc := uint32(expectedBytes[0])<<16 |
@@ -135,20 +143,28 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		line = line[:len(line)-5]
 		fmt.Printf("^^ Leftover after checksum: %q\n", line)
 
-		// If we have a checksum and there is still data, we
-		// don't want to go into "looking for armor end" loop.
+		lineWithChecksum = true
+
+		// If we've found a checksum but there is still data left, we don't
+		// want to enter the "looking for armor end" loop.
 		foldedChecksum = len(line) > 0
 	}
 
 	expectArmorEnd := false
 	if l.crc != nil && !foldedChecksum {
-		// We have a checksum and we are now reading what's after. Skip
-		// all empty lines until we see something and we except it to be
+		// "looking for armor end" loop
+
+		// We have a checksum, and we are now reading what comes afterwards.
+		// Skip all empty lines until we see something and we except it to be
 		// ArmorEnd at this point.
+
+		// This loop is not entered if there is more data *before* the CRC
+		// suffix (if the CRC is not on separate line).
 		for {
 			if len(strings.TrimSpace(string(line))) > 0 {
 				break
 			}
+			lineWithChecksum = false
 			line, _, err = l.in.ReadLine()
 			if err == io.EOF {
 				break
@@ -161,6 +177,10 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 	}
 
 	if bytes.HasPrefix(line, armorEnd) {
+		if lineWithChecksum {
+			// ArmorEnd and checksum at the same line?
+			return 0, ArmorCorrupt
+		}
 		fmt.Printf("++ GOT ARMOR END: %+v\n", l)
 		l.eof = true
 		return 0, io.EOF
