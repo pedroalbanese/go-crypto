@@ -124,27 +124,28 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		var expectedBytes [3]byte
 		var m int
 		m, err = base64.StdEncoding.Decode(expectedBytes[0:], line[len(line)-4:])
-		if m != 3 || err != nil {
-			if err != nil {
-				// rewrite err
-				err = fmt.Errorf("error decoding CRC: %s", err.Error())
-			} else {
-				// or make one if we are here because b64 decoded to less than 3 bytes.
-				err = fmt.Errorf("error decoding CRC: wrong size CRC")
-			}
-			return
+		if err != nil {
+			return 0, fmt.Errorf("error decoding CRC: %s", err.Error())
+		} else if m != 3 {
+			return 0, fmt.Errorf("error decoding CRC: wrong size CRC")
 		}
+
 		crc := uint32(expectedBytes[0])<<16 |
 			uint32(expectedBytes[1])<<8 |
 			uint32(expectedBytes[2])
 		l.crc = &crc
+
 		line = line[:len(line)-5]
 
 		lineWithChecksum = true
 
 		// If we've found a checksum but there is still data left, we don't
-		// want to enter the "looking for armor end" loop.
+		// want to enter the "looking for armor end" loop, we still need to
+		// return the leftover data to the reader.
 		foldedChecksum = len(line) > 0
+
+		// At this point, `line` contains leftover data or "" (if checksum
+		// was on separate line.)
 	}
 
 	expectArmorEnd := false
