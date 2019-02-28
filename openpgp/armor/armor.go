@@ -91,7 +91,7 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		return
 	}
 
-	line, _, err := l.in.ReadLine()
+	line, isPrefix, err := l.in.ReadLine()
 	if err != nil {
 		return
 	}
@@ -103,7 +103,7 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 
 	lineWithChecksum := false
 	foldedChecksum := false
-	if len(line) >= 5 && line[len(line)-5] == '=' && line[len(line)-4] != '=' {
+	if !isPrefix && len(line) >= 5 && line[len(line)-5] == '=' && line[len(line)-4] != '=' {
 		// This is the checksum line. Checksum should appear on separate line,
 		// but some bundles don't have a newline between main payload and the
 		// checksum, and we try to support that.
@@ -115,12 +115,17 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		// at position len-5 in base64 stream can never be a valid part of that
 		// stream.
 
-		if l.crc != nil {
-			// Error out early if there are multiple checksums.
-			return 0, ArmorCorrupt
-		}
+		// Checksum can never appear if isPrefix is true - that is, when
+		// ReadLine returned non-final part of some line because it was longer
+		// than its buffer.
 
 		fmt.Printf("^^ Found Checksum: %q\n", line[len(line)-5:])
+
+		if l.crc != nil {
+			// Error out early if there are multiple checksums.
+			fmt.Printf("^^ Multiple CRC error.\n")
+			return 0, ArmorCorrupt
+		}
 
 		var expectedBytes [3]byte
 		var m int
@@ -186,6 +191,7 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	} else if expectArmorEnd {
 		// We wanted armorEnd but didn't see one.
+		fmt.Printf("+_+ expected armor but didn't get one \n")
 		return 0, ArmorCorrupt
 	}
 

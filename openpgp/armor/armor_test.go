@@ -95,9 +95,12 @@ func decodeAndReadShortReads(t *testing.T, armor string) (ret string) {
 		t.Fatal(err)
 	}
 
+	var readLengths = [...]int{3, 3, 5, 6, 4, 5, 6, 1, 1, 4, 2, 2}
 	var p [10]byte
-	n := 1
+	i := 0
 	for {
+		n := readLengths[i%len(readLengths)]
+		i++
 		z, err := result.Body.Read(p[:n])
 		ret += string(p[:z])
 		if err == io.EOF {
@@ -106,7 +109,6 @@ func decodeAndReadShortReads(t *testing.T, armor string) (ret string) {
 			t.Error(err)
 			break
 		}
-		n = (n + 1) % 5
 	}
 
 	return ret
@@ -210,10 +212,15 @@ func TestMalformedCRCs(t *testing.T) {
 	// Test CRC being in random places in payload trying to confuse our parser.
 	decodeAndReadFail(t, armorErrorText, confuseArmorAndCRC)
 	decodeAndReadFail(t, armorErrorText, testBadCRC)
+
 	decodeAndReadFail(t, armorErrorText, testMultipleCrcs)
+	decodeAndReadFail(t, armorErrorText, testMultipleCrcs2)
 
 	decodeAndReadFail(t, "error decoding CRC: wrong size CRC", testNonDecodableCRC)
 	decodeAndReadFail(t, "error decoding CRC: illegal base64 data at input byte 1", testNonDecodableCRC2)
+
+	decodeAndReadFail(t, armorErrorText, stuffAfterChecksum1)
+	decodeAndReadFail(t, armorErrorText, stuffAfterChecksum2)
 }
 
 const armorExample1 = `-----BEGIN PGP SIGNATURE-----
@@ -377,6 +384,14 @@ SHVoIGhlbGxvIHdvcmxkCg===n5G6
 -----END PGP ARMORED FILE-----
 `
 
+const testMultipleCrcs2 = `-----BEGIN PGP ARMORED FILE-----
+
+SHVoIGhlbGxvIHdvcmxkCg==
+=n5G6
+=n5G6
+-----END PGP ARMORED FILE-----
+`
+
 const testNonDecodableCRC = `-----BEGIN PGP ARMORED FILE-----
 
 SHVoIGhlbGxvIHdvcmxkCg==
@@ -389,4 +404,22 @@ const testNonDecodableCRC2 = `-----BEGIN PGP ARMORED FILE-----
 SHVoIGhlbGxvIHdvcmxkCg==
 =n%!@
 -----END PGP ARMORED FILE-----
+`
+
+const stuffAfterChecksum1 = `-----BEGIN PGP ARMORED FILE-----
+
+aGVsbG8gdGVzdCBoZWxsbyB0ZXN0IGhlbGxvIHRlc3QgaGVsbG8gdGVzdCBoZWxs
+=9XyA
+byB0ZXN0IGhlbGxvIHRlc3QgaGVsbG8gdGVzdCBoZWxsbyB0ZXN0IA==
+-----END PGP ARMORED FILE-----
+`
+
+const stuffAfterChecksum2 = `-----BEGIN PGP ARMORED FILE-----
+
+aGVsbG8gdGVzdCBoZWxsbyB0ZXN0IGhlbGxvIHRlc3QgaGVsbG8g
+dGVzdCBoZWxs=9XyA
+byB0ZXN0IGhlbGxvIHRlc3QgaGVsbG8gdGVzdCBoZWxsbyB0ZXN0IA==
+=9XyA
+-----END PGP ARMORED FILE-----
+
 `
