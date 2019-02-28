@@ -80,7 +80,6 @@ func ourIsSpace(r rune) bool {
 }
 
 func (l *lineReader) Read(p []byte) (n int, err error) {
-	defer func() { fmt.Printf("++ - LineRead: %d %q %v\n", n, p[:n], err) }()
 	if l.eof {
 		return 0, io.EOF
 	}
@@ -95,8 +94,6 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-
-	fmt.Printf("+- Got line: %q\n", line)
 
 	// Entry-level cleanup, just trim spaces.
 	line = bytes.TrimFunc(line, ourIsSpace)
@@ -119,11 +116,8 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		// ReadLine returned non-final part of some line because it was longer
 		// than its buffer.
 
-		fmt.Printf("^^ Found Checksum: %q\n", line[len(line)-5:])
-
 		if l.crc != nil {
 			// Error out early if there are multiple checksums.
-			fmt.Printf("^^ Multiple CRC error.\n")
 			return 0, ArmorCorrupt
 		}
 
@@ -131,7 +125,6 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 		var m int
 		m, err = base64.StdEncoding.Decode(expectedBytes[0:], line[len(line)-4:])
 		if m != 3 || err != nil {
-			fmt.Printf("^^ m=%d err=%v", m, err)
 			if err != nil {
 				// rewrite err
 				err = fmt.Errorf("error decoding CRC: %s", err.Error())
@@ -146,7 +139,6 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 			uint32(expectedBytes[2])
 		l.crc = &crc
 		line = line[:len(line)-5]
-		fmt.Printf("^^ Leftover after checksum: %q\n", line)
 
 		lineWithChecksum = true
 
@@ -186,12 +178,10 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 			// ArmorEnd and checksum at the same line?
 			return 0, ArmorCorrupt
 		}
-		fmt.Printf("++ GOT ARMOR END: %+v\n", l)
 		l.eof = true
 		return 0, io.EOF
 	} else if expectArmorEnd {
 		// We wanted armorEnd but didn't see one.
-		fmt.Printf("+_+ expected armor but didn't get one \n")
 		return 0, ArmorCorrupt
 	}
 
@@ -230,8 +220,6 @@ type openpgpReader struct {
 }
 
 func (r *openpgpReader) Read(p []byte) (n int, err error) {
-	defer func() { fmt.Printf(":: Read %d %d %q %v\n", n, len(p), p[:n], err) }()
-
 	n, err = r.b64Reader.Read(p)
 	r.currentCRC = crc24(r.currentCRC, p[:n])
 
