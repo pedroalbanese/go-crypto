@@ -161,7 +161,6 @@ func TestFoldedCRC(t *testing.T) {
 	// (discards the folded in CRC as garbage), and it's probably the
 	// right behavior to aim for here.
 
-	fmt.Printf("%q\n", armorNoNewlinesBrokenCRC)
 	result, _ := decodeAndReadAll(t, armorNoNewlinesBrokenCRC)
 	if result.lReader.crc == nil {
 		// Make sure that ZERO-WIDTH SPACE did not mess with crc reading.
