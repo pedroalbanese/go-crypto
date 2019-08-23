@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/elliptic"
+	"encoding/base64"
 	"errors"
 	"io"
 	"strings"
@@ -707,5 +708,17 @@ func TestStubbedPrivateKeyDecryption(t *testing.T) {
 		if err != pgpErrors.ErrKeyIncorrect {
 			t.Fatalf("Expecting an error to be ErrKeyIncorrect")
 		}
+	}
+}
+
+// See https://github.com/keybase/client/issues/18944; ReadKeyRing used to panic here
+func TestElGamalPrivateKeyFuzz(t *testing.T) {
+	d, err := base64.StdEncoding.DecodeString("xyIEOQTlQxQAAAAAAAAAADZlZ2VWZWU7wgAEfzdGaWxlIFOnxyIELgTlQwEAAAAAAA==")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ReadKeyRing(bytes.NewBuffer(d))
+	if err == nil {
+		t.Fatal(errors.New("should have gotten an error parsing elgamal sign-or-encrypt private key"))
 	}
 }
