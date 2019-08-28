@@ -208,6 +208,12 @@ var keyPressTests = []struct {
 		line: "a",
 		err:  ErrPasteIndicator,
 	},
+	{
+		// Control-C cancels all input
+		in:   "A fine kettle of fish\003",
+		line: "",
+		err:  io.ErrUnexpectedEOF,
+	},
 }
 
 func TestKeyPresses(t *testing.T) {

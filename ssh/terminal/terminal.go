@@ -112,6 +112,7 @@ func NewTerminal(c io.ReadWriter, prompt string) *Terminal {
 }
 
 const (
+	keyCtrlC     = 3
 	keyCtrlD     = 4
 	keyCtrlU     = 21
 	keyEnter     = '\r'
@@ -445,13 +446,16 @@ func visualLength(runes []rune) int {
 
 // handleKey processes the given key and, optionally, returns a line of text
 // that the user has entered.
-func (t *Terminal) handleKey(key rune) (line string, ok bool) {
+func (t *Terminal) handleKey(key rune) (line string, ok bool, err error) {
 	if t.pasteActive && key != keyEnter {
 		t.addKeyToLine(key)
 		return
 	}
 
 	switch key {
+	case keyCtrlC:
+		err = io.ErrUnexpectedEOF
+		return
 	case keyBackspace:
 		if t.pos == 0 {
 			return
@@ -492,7 +496,7 @@ func (t *Terminal) handleKey(key rune) (line string, ok bool) {
 	case keyUp:
 		entry, ok := t.history.NthPreviousEntry(t.historyIndex + 1)
 		if !ok {
-			return "", false
+			return "", false, nil
 		}
 		if t.historyIndex == -1 {
 			t.historyPending = string(t.line)
@@ -751,7 +755,10 @@ func (t *Terminal) readLine() (line string, err error) {
 			if !t.pasteActive {
 				lineIsPasted = false
 			}
-			line, lineOk = t.handleKey(key)
+			line, lineOk, err = t.handleKey(key)
+			if err != nil {
+				return line, err
+			}
 		}
 		if len(rest) > 0 {
 			n := copy(t.inBuf[:], rest)
