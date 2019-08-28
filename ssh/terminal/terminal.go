@@ -7,6 +7,7 @@ package terminal
 import (
 	"bytes"
 	"io"
+	"strconv"
 	"sync"
 	"unicode/utf8"
 )
@@ -111,7 +112,6 @@ func NewTerminal(c io.ReadWriter, prompt string) *Terminal {
 }
 
 const (
-	keyCtrlC     = 3
 	keyCtrlD     = 4
 	keyCtrlU     = 21
 	keyEnter     = '\r'
@@ -133,8 +133,11 @@ const (
 	keyPasteEnd
 )
 
-var pasteStart = []byte{keyEscape, '[', '2', '0', '0', '~'}
-var pasteEnd = []byte{keyEscape, '[', '2', '0', '1', '~'}
+var (
+	crlf       = []byte{'\r', '\n'}
+	pasteStart = []byte{keyEscape, '[', '2', '0', '0', '~'}
+	pasteEnd   = []byte{keyEscape, '[', '2', '0', '1', '~'}
+)
 
 // bytesToKey tries to parse a key sequence from b. If successful, it returns
 // the key and the remainder of the input. Otherwise it returns utf8.RuneError.
@@ -157,6 +160,10 @@ func bytesToKey(b []byte, pasteActive bool) (rune, []byte) {
 			return keyClearScreen, b[1:]
 		case 23: // ^W
 			return keyDeleteWord, b[1:]
+		case 14: // ^N
+			return keyDown, b[1:]
+		case 16: // ^P
+			return keyUp, b[1:]
 		}
 	}
 
@@ -265,34 +272,44 @@ func (t *Terminal) moveCursorToPos(pos int) {
 }
 
 func (t *Terminal) move(up, down, left, right int) {
-	movement := make([]rune, 3*(up+down+left+right))
-	m := movement
-	for i := 0; i < up; i++ {
-		m[0] = keyEscape
-		m[1] = '['
-		m[2] = 'A'
-		m = m[3:]
-	}
-	for i := 0; i < down; i++ {
-		m[0] = keyEscape
-		m[1] = '['
-		m[2] = 'B'
-		m = m[3:]
-	}
-	for i := 0; i < left; i++ {
-		m[0] = keyEscape
-		m[1] = '['
-		m[2] = 'D'
-		m = m[3:]
-	}
-	for i := 0; i < right; i++ {
-		m[0] = keyEscape
-		m[1] = '['
-		m[2] = 'C'
-		m = m[3:]
+	m := []rune{}
+
+	// 1 unit up can be expressed as ^[[A or ^[A
+	// 5 units up can be expressed as ^[[5A
+
+	if up == 1 {
+		m = append(m, keyEscape, '[', 'A')
+	} else if up > 1 {
+		m = append(m, keyEscape, '[')
+		m = append(m, []rune(strconv.Itoa(up))...)
+		m = append(m, 'A')
 	}
 
-	t.queue(movement)
+	if down == 1 {
+		m = append(m, keyEscape, '[', 'B')
+	} else if down > 1 {
+		m = append(m, keyEscape, '[')
+		m = append(m, []rune(strconv.Itoa(down))...)
+		m = append(m, 'B')
+	}
+
+	if right == 1 {
+		m = append(m, keyEscape, '[', 'C')
+	} else if right > 1 {
+		m = append(m, keyEscape, '[')
+		m = append(m, []rune(strconv.Itoa(right))...)
+		m = append(m, 'C')
+	}
+
+	if left == 1 {
+		m = append(m, keyEscape, '[', 'D')
+	} else if left > 1 {
+		m = append(m, keyEscape, '[')
+		m = append(m, []rune(strconv.Itoa(left))...)
+		m = append(m, 'D')
+	}
+
+	t.queue(m)
 }
 
 func (t *Terminal) clearLineToRight() {
@@ -334,7 +351,7 @@ func (t *Terminal) advanceCursor(places int) {
 		// So, if we are stopping at the end of a line, we
 		// need to write a newline so that our cursor can be
 		// advanced to the next line.
-		t.outBuf = append(t.outBuf, '\n')
+		t.outBuf = append(t.outBuf, '\r', '\n')
 	}
 }
 
@@ -428,16 +445,13 @@ func visualLength(runes []rune) int {
 
 // handleKey processes the given key and, optionally, returns a line of text
 // that the user has entered.
-func (t *Terminal) handleKey(key rune) (line string, ok bool, err error) {
+func (t *Terminal) handleKey(key rune) (line string, ok bool) {
 	if t.pasteActive && key != keyEnter {
 		t.addKeyToLine(key)
 		return
 	}
 
 	switch key {
-	case keyCtrlC:
-		err = io.ErrUnexpectedEOF
-		return
 	case keyBackspace:
 		if t.pos == 0 {
 			return
@@ -478,7 +492,7 @@ func (t *Terminal) handleKey(key rune) (line string, ok bool, err error) {
 	case keyUp:
 		entry, ok := t.history.NthPreviousEntry(t.historyIndex + 1)
 		if !ok {
-			return "", false, nil
+			return "", false
 		}
 		if t.historyIndex == -1 {
 			t.historyPending = string(t.line)
@@ -597,6 +611,35 @@ func (t *Terminal) writeLine(line []rune) {
 	}
 }
 
+// writeWithCRLF writes buf to w but replaces all occurrences of \n with \r\n.
+func writeWithCRLF(w io.Writer, buf []byte) (n int, err error) {
+	for len(buf) > 0 {
+		i := bytes.IndexByte(buf, '\n')
+		todo := len(buf)
+		if i >= 0 {
+			todo = i
+		}
+
+		var nn int
+		nn, err = w.Write(buf[:todo])
+		n += nn
+		if err != nil {
+			return n, err
+		}
+		buf = buf[todo:]
+
+		if i >= 0 {
+			if _, err = w.Write(crlf); err != nil {
+				return n, err
+			}
+			n++
+			buf = buf[1:]
+		}
+	}
+
+	return n, nil
+}
+
 func (t *Terminal) Write(buf []byte) (n int, err error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
@@ -604,7 +647,7 @@ func (t *Terminal) Write(buf []byte) (n int, err error) {
 	if t.cursorX == 0 && t.cursorY == 0 {
 		// This is the easy case: there's nothing on the screen that we
 		// have to move out of the way.
-		return t.c.Write(buf)
+		return writeWithCRLF(t.c, buf)
 	}
 
 	// We have a prompt and possibly user input on the screen. We
@@ -624,7 +667,7 @@ func (t *Terminal) Write(buf []byte) (n int, err error) {
 	}
 	t.outBuf = t.outBuf[:0]
 
-	if n, err = t.c.Write(buf); err != nil {
+	if n, err = writeWithCRLF(t.c, buf); err != nil {
 		return
 	}
 
@@ -708,10 +751,7 @@ func (t *Terminal) readLine() (line string, err error) {
 			if !t.pasteActive {
 				lineIsPasted = false
 			}
-			line, lineOk, err = t.handleKey(key)
-			if err != nil {
-				return line, err
-			}
+			line, lineOk = t.handleKey(key)
 		}
 		if len(rest) > 0 {
 			n := copy(t.inBuf[:], rest)
@@ -747,8 +787,6 @@ func (t *Terminal) readLine() (line string, err error) {
 
 		t.remainder = t.inBuf[:n+len(t.remainder)]
 	}
-
-	panic("unreachable") // for Go 1.0.
 }
 
 // SetPrompt sets the prompt to be used when reading subsequent lines.
@@ -896,4 +934,33 @@ func (s *stRingBuffer) NthPreviousEntry(n int) (value string, ok bool) {
 		index += s.max
 	}
 	return s.entries[index], true
+}
+
+// readPasswordLine reads from reader until it finds \n or io.EOF.
+// The slice returned does not include the \n.
+// readPasswordLine also ignores any \r it finds.
+func readPasswordLine(reader io.Reader) ([]byte, error) {
+	var buf [1]byte
+	var ret []byte
+
+	for {
+		n, err := reader.Read(buf[:])
+		if n > 0 {
+			switch buf[0] {
+			case '\n':
+				return ret, nil
+			case '\r':
+				// remove \r from passwords on Windows
+			default:
+				ret = append(ret, buf[0])
+			}
+			continue
+		}
+		if err != nil {
+			if err == io.EOF && len(ret) > 0 {
+				return ret, nil
+			}
+			return ret, err
+		}
+	}
 }
